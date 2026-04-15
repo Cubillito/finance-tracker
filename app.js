@@ -27,12 +27,13 @@ let db = {
   inversiones: [],
   creditos: [],
   deudas: [],
-  recurrentes: []
+  recurrentes: [],
+  presupuestos: []
 };
 
 const emptyDb = () => ({
   ingresos: [], gastos: [], ahorros: [], inversiones: [],
-  creditos: [], deudas: [], recurrentes: []
+  creditos: [], deudas: [], recurrentes: [], presupuestos: []
 });
 
 // Generador de UUID v4 simple
@@ -122,7 +123,7 @@ async function deleteItem(collectionName, itemId) {
 async function loadFromFirestore() {
   try {
     if (!currentUser) return;
-    const collections = ['ingresos', 'gastos', 'ahorros', 'inversiones', 'creditos', 'deudas', 'recurrentes'];
+    const collections = ['ingresos', 'gastos', 'ahorros', 'inversiones', 'creditos', 'deudas', 'recurrentes', 'presupuestos'];
     const baseRef = firestore.collection('users').doc(currentUser.uid);
     
     let newDb = emptyDb();
@@ -361,7 +362,43 @@ function initApp() {
   setupDeudasModales();
   setupRecurrentesModales();
 
+  // Listeners Formulario Presupuesto
+  document.getElementById('formPresupuestos').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const cats = ['comida', 'transporte', 'salud', 'entretención', 'ropa', 'hogar', 'educación', 'otro'];
+    const nuevosPresupuestos = [];
+    cats.forEach(c => {
+      let val = document.querySelector(`input[name="presupuesto_${c}"]`).value;
+      if (val && Number(val) > 0) {
+        nuevosPresupuestos.push({ id: `presupuesto_${c}`, categoria: c, monto: Number(val) });
+      }
+    });
+    db.presupuestos = nuevosPresupuestos;
+    await syncData('add', 'presupuestos', nuevosPresupuestos);
+    alert('Presupuestos guardados correctamente');
+    refreshViews();
+  });
+
   refreshViews();
+}
+
+function renderPresupuestosForm() {
+  const cats = ['comida', 'transporte', 'salud', 'entretención', 'ropa', 'hogar', 'educación', 'otro'];
+  const pContainer = document.getElementById('presupuestosFormContainer');
+  pContainer.innerHTML = '';
+  
+  cats.forEach(c => {
+    let exist = db.presupuestos ? db.presupuestos.find(p => p.categoria === c) : null;
+    let limit = exist ? exist.monto : '';
+    pContainer.innerHTML += `
+      <div class="form-row" style="align-items: center; margin-bottom: 0.8rem;">
+        <label style="flex:1; margin-bottom:0;">${getIconForCat(c)} ${c.charAt(0).toUpperCase() + c.slice(1)}</label>
+        <div style="flex:2;">
+          <input type="number" class="form-control" name="presupuesto_${c}" value="${limit}" placeholder="Límite en CLP" min="0">
+        </div>
+      </div>
+    `;
+  });
 }
 
 function refreshViews() {
@@ -371,6 +408,7 @@ function refreshViews() {
   renderStatsAnuales();
   renderDeudas();
   renderRecurrentes();
+  renderPresupuestosForm();
 }
 
 // Funciones Auxiliares de Consulta
@@ -431,6 +469,42 @@ function renderResumen() {
   document.getElementById('saldoPersonal').textContent = formatMoney(saldoP);
   document.getElementById('saldoU').textContent = formatMoney(saldoUStr);
   document.getElementById('totalCuenta').textContent = formatMoney(iTotal - gTotal - oldAhTotal - oldInvTotal - cTotal);
+
+  // Generar Barras de Presupuesto
+  const pList = document.getElementById('budgetProgressList');
+  const pContainer = document.getElementById('budgetProgressContainer');
+  if (db.presupuestos && db.presupuestos.length > 0) {
+    pContainer.style.display = 'block';
+    pList.innerHTML = '';
+    
+    let curGastos = {};
+    tx.gastos.forEach(g => {
+      let c = g.categoria || 'otro';
+      curGastos[c] = (curGastos[c] || 0) + Number(g.monto);
+    });
+
+    db.presupuestos.forEach(p => {
+      let spent = curGastos[p.categoria] || 0;
+      let limit = p.monto;
+      let pct = (spent / limit) * 100;
+      if (pct > 100) pct = 100;
+      let isDanger = pct >= 90;
+
+      pList.innerHTML += `
+        <div style="background: rgba(255,255,255,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm);">
+          <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem; font-weight:500;">
+            <span>${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}</span>
+            <span class="text-muted">${formatMoney(spent)} / ${formatMoney(limit)}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="fill ${isDanger ? 'danger' : ''}" style="width: ${pct}%"></div>
+          </div>
+        </div>
+      `;
+    });
+  } else {
+    pContainer.style.display = 'none';
+  }
 
   // Llenar tabla resumen
   const table = document.getElementById('resumenTableBody');
@@ -556,10 +630,18 @@ function setupRegistroModals() {
     const ctx = document.getElementById('txContext').value;
     const isEdit = document.getElementById('txId').value !== '';
 
+    let montoOrig = Number(document.getElementById('txMonto').value);
+    let moneda = document.getElementById('txMoneda').value;
+    let tasa = moneda === 'CLP' ? 1 : Number(document.getElementById('txTasaCambio').value);
+    let montoCLP = montoOrig * tasa;
+
     let obj = {
       id: id,
       fecha: document.getElementById('txFecha').value,
-      monto: Number(document.getElementById('txMonto').value),
+      montoOriginal: montoOrig,
+      moneda: moneda,
+      tasaCambio: tasa,
+      monto: montoCLP,
       descripcion: document.getElementById('txDesc').value
     };
 
@@ -596,6 +678,10 @@ function openTxModal(context, editObj = null) {
   document.getElementById('txContext').value = context;
   document.getElementById('txId').value = editObj ? editObj.id : '';
 
+  document.getElementById('txMoneda').value = 'CLP';
+  document.getElementById('txTasaCambio').value = '1';
+  toggleTasaCambio('tx');
+
   const modalTitle = {
     ingreso: 'Nuevo Ingreso', gasto: 'Nuevo Gasto', ahorro: 'Nuevo Ahorro',
     inversion: 'Nueva Inversión', credito: 'Pago de Crédito'
@@ -622,8 +708,14 @@ function openTxModal(context, editObj = null) {
   // Si es edicion, poblar data
   if (editObj) {
     document.getElementById('txFecha').value = editObj.fecha || editObj.fecha_pago;
-    document.getElementById('txMonto').value = editObj.monto;
+    document.getElementById('txMonto').value = editObj.montoOriginal || editObj.monto;
     document.getElementById('txDesc').value = editObj.descripcion;
+    
+    if (editObj.moneda) {
+      document.getElementById('txMoneda').value = editObj.moneda;
+      document.getElementById('txTasaCambio').value = editObj.tasaCambio || 1;
+      toggleTasaCambio('tx');
+    }
     
     if (context === 'gasto') {
       document.getElementById('txDonde').value = editObj.donde;
@@ -779,11 +871,19 @@ function setupRecurrentesModales() {
     const isEdit = document.getElementById('recId').value !== '';
     const tipo = document.getElementById('recTipo').value;
 
+    let montoOrig = Number(document.getElementById('recMonto').value);
+    let moneda = document.getElementById('recMoneda').value;
+    let tasa = moneda === 'CLP' ? 1 : Number(document.getElementById('recTasaCambio').value);
+    let montoCLP = montoOrig * tasa;
+
     const obj = {
       id: id,
       tipo: tipo,
       descripcion: document.getElementById('recDesc').value,
-      monto: Number(document.getElementById('recMonto').value),
+      montoOriginal: montoOrig,
+      moneda: moneda,
+      tasaCambio: tasa,
+      monto: montoCLP,
       fondo: document.getElementById('recFondo').value,
       activo: document.getElementById('recActivo').checked
     };
@@ -901,7 +1001,17 @@ window.editRecurrente = function(id) {
   document.getElementById('recTipo').dispatchEvent(new Event('change'));
 
   document.getElementById('recDesc').value = r.descripcion;
-  document.getElementById('recMonto').value = r.monto;
+  document.getElementById('recMonto').value = r.montoOriginal || r.monto;
+  
+  if (r.moneda) {
+    document.getElementById('recMoneda').value = r.moneda;
+    document.getElementById('recTasaCambio').value = r.tasaCambio || 1;
+    toggleTasaCambio('rec');
+  } else {
+    document.getElementById('recMoneda').value = 'CLP';
+    toggleTasaCambio('rec');
+  }
+
   document.getElementById('recFondo').value = r.fondo;
   document.getElementById('recActivo').checked = r.activo;
 
@@ -1125,4 +1235,38 @@ function applyTheme(theme) {
   } else {
     document.documentElement.removeAttribute('data-theme');
   }
+}
+
+// === EXPORTAR A CSV ===
+window.exportCSV = function() {
+  const month = document.getElementById('filterExportMonth').value;
+  if (!month) return alert('Por favor, selecciona un mes para exportar en el campo provisto.');
+  
+  const tx = getTransactionsByMonth(month);
+  let rows = [["Fecha", "Tipo", "Categoria o Fondo", "Descripcion / Lugar", "Monto Original", "Moneda", "Monto (CLP)"]];
+  
+  let gSum = 0;
+  let iSum = 0;
+
+  tx.ingresos.forEach(i => { rows.push([i.fecha, "Ingreso", i.fondo, i.descripcion, i.montoOriginal || i.monto, i.moneda || 'CLP', i.monto]); iSum += Number(i.monto); });
+  tx.gastos.forEach(g => { rows.push([g.fecha, "Gasto", g.categoria || g.fondo, `${g.donde||''} - ${g.descripcion}`, g.montoOriginal || g.monto, g.moneda || 'CLP', g.monto]); gSum += Number(g.monto); });
+  tx.ahorros.forEach(a => { rows.push([a.fecha, "Ahorro", "-", a.descripcion, a.montoOriginal || a.monto, a.moneda || 'CLP', a.monto]); });
+  tx.inversiones.forEach(inv => { rows.push([inv.fecha, "Inversión", "-", inv.descripcion, inv.montoOriginal || inv.monto, inv.moneda || 'CLP', inv.monto]); });
+  tx.creditos.forEach(c => { rows.push([c.fecha_pago || c.fecha, "Pago Crédito", "-", c.descripcion, c.montoOriginal || c.monto, c.moneda || 'CLP', c.monto]); });
+
+  rows.push([]);
+  rows.push(["TOTAL INGRESOS", "", "", "", "", "", iSum]);
+  rows.push(["TOTAL GASTOS", "", "", "", "", "", gSum]);
+  rows.push(["SALDO NETO (Flujo Caja)", "", "", "", "", "", iSum - gSum]);
+
+  let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+    + rows.map(e => e.join(";")).join("\n");
+    
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `Reporte_Mensual_${month}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }

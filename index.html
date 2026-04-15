@@ -55,6 +55,7 @@
       <button class="tab-btn" data-target="view-stats-ano">Estadísticas Anuales</button>
       <button class="tab-btn" data-target="view-deudas">Deudas</button>
       <button class="tab-btn" data-target="view-recurrentes">Recurrentes</button>
+      <button class="tab-btn" data-target="view-presupuestos">Presupuestos</button>
     </nav>
 
     <!-- VISTA: RESUMEN MENSUAL -->
@@ -82,6 +83,15 @@
         <div class="card" style="grid-column: span 1/"><div class="card-title">Saldo Personal</div><div class="card-value text-primary" id="saldoPersonal">$0</div></div>
         <div class="card" style="grid-column: span 1/"><div class="card-title">Saldo U</div><div class="card-value text-primary" id="saldoU">$0</div></div>
         <div class="card" style="grid-column: span 1/"><div class="card-title">Total en cuenta</div><div class="card-value text-primary" id="totalCuenta">$0</div></div>
+      </div>
+
+      <div id="budgetProgressContainer" style="display: none; margin-bottom: 2.5rem;">
+        <div class="section-title">
+          <h3>Estado de Presupuestos (Mes Actual)</h3>
+        </div>
+        <div class="budget-grid" id="budgetProgressList" style="display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
+          <!-- Renderizado dinámicamente -->
+        </div>
       </div>
 
       <div class="section-title">
@@ -200,6 +210,13 @@
           <label>Año</label>
           <input type="number" id="filterStatsYear" class="form-control" value="2026" min="2000" max="2100">
         </div>
+        <div class="form-group" style="margin-left: auto;">
+          <label>Exportar Reporte Mensual (CSV)</label>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <input type="month" id="filterExportMonth" class="form-control">
+            <button class="btn btn-success" onclick="exportCSV()">📥 Descargar CSV</button>
+          </div>
+        </div>
       </div>
       <div class="charts-grid">
         <div class="chart-container" style="grid-column: 1 / -1;">
@@ -275,6 +292,22 @@
       </div>
     </main>
 
+    <!-- VISTA: PRESUPUESTOS -->
+    <main id="view-presupuestos" class="view">
+      <div class="section-title">
+        <h2>Presupuestos Mensuales</h2>
+      </div>
+      <p class="text-muted mb-4" style="margin-bottom: 1.5rem;">Define un límite de gasto mensual para cada categoría. El progreso del mes actual se muestra en "Resumen".</p>
+      <div class="card" style="max-width: 500px;">
+        <form id="formPresupuestos">
+          <div id="presupuestosFormContainer">
+             <!-- Renderizado por JS -->
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">💾 Guardar Presupuestos</button>
+        </form>
+      </div>
+    </main>
+
   </div>
 
   <!-- MODALES PARA FORMULARIOS -->
@@ -296,8 +329,22 @@
             <input type="date" id="txFecha" class="form-control" required>
           </div>
           <div class="form-group">
-            <label>Monto ($)</label>
-            <input type="number" id="txMonto" class="form-control" min="0" required>
+            <label>Monto Original</label>
+            <input type="number" id="txMonto" class="form-control" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Moneda</label>
+            <select id="txMoneda" class="form-control" onchange="toggleTasaCambio('tx')">
+              <option value="CLP">CLP (Pesos)</option>
+              <option value="USD">USD (Dólares)</option>
+              <option value="EUR">EUR (Euros)</option>
+            </select>
+          </div>
+          <div class="form-group" id="txGroupTasa" style="display:none;">
+            <label>Tasa de Cambio a CLP</label>
+            <input type="number" id="txTasaCambio" class="form-control" min="0.01" step="0.01" value="1">
           </div>
         </div>
         
@@ -413,12 +460,26 @@
         </div>
         <div class="form-row">
            <div class="form-group">
-            <label>Monto</label>
-            <input type="number" id="recMonto" class="form-control" min="0" required>
+            <label>Monto Original</label>
+            <input type="number" id="recMonto" class="form-control" min="0" step="0.01" required>
           </div>
           <div class="form-group" id="recGroupLugar">
             <label>Lugar (Dónde)</label>
             <input type="text" id="recDonde" class="form-control">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Moneda</label>
+            <select id="recMoneda" class="form-control" onchange="toggleTasaCambio('rec')">
+              <option value="CLP">CLP (Pesos)</option>
+              <option value="USD">USD (Dólares)</option>
+              <option value="EUR">EUR (Euros)</option>
+            </select>
+          </div>
+          <div class="form-group" id="recGroupTasa" style="display:none;">
+            <label>Tasa de Cambio a CLP</label>
+            <input type="number" id="recTasaCambio" class="form-control" min="0.01" step="0.01" value="1">
           </div>
         </div>
         <div class="form-row">
