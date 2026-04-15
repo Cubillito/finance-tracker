@@ -132,9 +132,40 @@ async function loadFromFirestore() {
     });
     
     await Promise.all(promises);
+
+    // Cargar documento principal por si hay datos sin migrar (esquema antiguo)
+    let hasOldData = false;
+    const docSnap = await baseRef.get();
+    if (docSnap.exists) {
+      const oldData = docSnap.data();
+      collections.forEach(coll => {
+        if (oldData[coll] && Array.isArray(oldData[coll]) && oldData[coll].length > 0) {
+          const existingIds = new Set(newDb[coll].map(i => i.id));
+          oldData[coll].forEach(item => {
+            if (!existingIds.has(item.id)) {
+              newDb[coll].push(item);
+              hasOldData = true;
+            }
+          });
+        }
+      });
+    }
+
     db = newDb;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
+
+    // Migrar automáticamente los datos antiguos a subcolecciones
+    if (hasOldData) {
+      console.log('Migrando datos antiguos a subcolecciones...');
+      setTimeout(async () => {
+        await saveToFirestore();
+        // Limpiamos los arrays del doc raíz para no migrar 2 veces
+        const updates = {};
+        collections.forEach(c => updates[c] = firebase.firestore.FieldValue.delete());
+        try { await baseRef.update(updates); } catch (e) { console.warn('Error limpiando doc:', e); }
+      }, 1500);
+    }
   } catch (err) {
     console.error('Error cargando de Firestore:', err);
     try {
@@ -149,6 +180,7 @@ async function saveToFirestore() {
   if (!currentUser) return;
   try {
     markUnsaved();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); // Guardado local inmediato
     const promises = [];
     Object.keys(db).forEach(col => {
       if (Array.isArray(db[col])) {
@@ -156,7 +188,6 @@ async function saveToFirestore() {
       }
     });
     await Promise.all(promises);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
   } catch (err) {
     console.error('Error masivo Firestore:', err);
@@ -242,6 +273,9 @@ function markSaved() {
 // Llamar cada vez que se agrega/edita/elimina algo
 async function syncData(action, type, item) {
   markUnsaved();
+  // Guardar offline inmediatamente antes del request a Firebase
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  
   try {
     if (action === 'add' || action === 'edit') {
       if (Array.isArray(item)) {
@@ -253,8 +287,6 @@ async function syncData(action, type, item) {
       await deleteItem(type, item.id || item);
     }
     
-    // Save offline cache
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
   } catch (err) {
     console.error('Error sincronizando a Firestore:', err);
