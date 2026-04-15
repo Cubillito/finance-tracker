@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finance Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <!-- Firebase SDK (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <!-- Pantalla de Login -->
+  <div id="loginScreen" class="overlay-welcome">
+    <div class="welcome-card">
+      <h2>💸 Finance Tracker</h2>
+      <p class="text-muted" style="margin: 1rem 0;">Inicia sesión para acceder a tus finanzas desde cualquier dispositivo.</p>
+      <button id="btnGoogleLogin" class="btn btn-google">
+        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Iniciar sesión con Google
+      </button>
+      <p class="text-muted" style="margin-top: 1.5rem; font-size: 0.8rem;">Tus datos se guardan en la nube de forma privada y segura.</p>
+    </div>
+  </div>
+
+  <div class="app-container" style="display: none;">
+    <header class="header">
+      <div>
+        <h1>Finance Tracker</h1>
+      </div>
+      <div class="file-status">
+        <span id="saveStatus"><span class="indicator saved"></span> Guardado</span>
+        <button id="btnSaveApp" class="btn btn-success btn-sm" style="display: none;" onclick="saveToFirestore()">💾 Guardar</button>
+        <button class="btn btn-outline btn-sm" onclick="importFromFile()">📥 Importar</button>
+        <button class="btn btn-outline btn-sm" onclick="exportToFile()">📤 Exportar</button>
+        <button class="btn btn-outline btn-sm" id="btnThemeToggle" onclick="toggleTheme()">🎨 Tema</button>
+        <div id="userInfo" class="user-info" style="display: none;">
+          <img id="userAvatar" class="user-avatar" src="" alt="avatar">
+          <span id="userName" class="user-name"></span>
+          <button class="btn btn-outline btn-sm" onclick="logOut()">Salir</button>
+        </div>
+      </div>
+    </header>
+
+    <nav id="mainNav">
+      <button class="tab-btn active" data-target="view-resumen">Resumen</button>
+      <button class="tab-btn" data-target="view-registro">Registro</button>
+      <button class="tab-btn" data-target="view-stats-mes">Estadísticas Mensuales</button>
+      <button class="tab-btn" data-target="view-stats-ano">Estadísticas Anuales</button>
+      <button class="tab-btn" data-target="view-deudas">Deudas</button>
+      <button class="tab-btn" data-target="view-recurrentes">Recurrentes</button>
+    </nav>
+
+    <!-- VISTA: RESUMEN MENSUAL -->
+    <main id="view-resumen" class="view active">
+      <div class="filters-bar">
+        <div class="form-group">
+          <label>Mes</label>
+          <input type="month" id="filterResumenMonth" class="form-control">
+        </div>
+      </div>
+
+      <div id="uncategorizedWarning" class="uncategorized-warning">
+        ⚠️ Tienes gastos en este mes sin categoría asignada. Revísalos en la pestaña de Registro.
+      </div>
+
+      <div class="summary-grid">
+        <div class="card"><div class="card-title">Gasto Personal</div><div class="card-value text-danger" id="sumGastoPersonal">$0</div></div>
+        <div class="card"><div class="card-title">Gasto U</div><div class="card-value text-danger" id="sumGastoU">$0</div></div>
+        <div class="card"><div class="card-title">Gasto Total</div><div class="card-value text-danger" id="sumGastoTotal">$0</div></div>
+        <div class="card"><div class="card-title">Ingreso Total</div><div class="card-value text-success" id="sumIngresos">$0</div></div>
+        <div class="card"><div class="card-title">Ahorro</div><div class="card-value text-success" id="sumAhorro">$0</div></div>
+        <div class="card"><div class="card-title">Inversión</div><div class="card-value text-success" id="sumInversion">$0</div></div>
+        <div class="card"><div class="card-title">Gasto Crédito</div><div class="card-value" id="sumCredito">$0</div></div>
+        <div class="card"><div class="card-title">Gasto Débito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
+        
+        <!-- Saldos calculados -->
+        <div class="card" style="grid-column: span 1/"><div class="card-title">Saldo Personal</div><div class="card-value text-primary" id="saldoPersonal">$0</div></div>
+        <div class="card" style="grid-column: span 1/"><div class="card-title">Saldo U</div><div class="card-value text-primary" id="saldoU">$0</div></div>
+        <div class="card" style="grid-column: span 1/"><div class="card-title">Total en cuenta</div><div class="card-value text-primary" id="totalCuenta">$0</div></div>
+      </div>
+
+      <div class="section-title">
+        <h3>Últimas Transacciones (Mes Actual)</h3>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Descripción</th>
+              <th>Detalles</th>
+              <th>Monto</th>
+            </tr>
+          </thead>
+          <tbody id="resumenTableBody">
+            <!-- Renderizado desde JS -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- VISTA: REGISTRO -->
+    <main id="view-registro" class="view">
+      <div class="section-title">
+        <h2>Transacciones</h2>
+        <div>
+          <button class="btn btn-success" id="btnAddIngreso">➕ Ingreso</button>
+          <button class="btn btn-danger" id="btnAddGasto">➖ Gasto</button>
+          <button class="btn btn-outline" id="btnAddOtro">⚙️ Otro (Ahorro/Inv)</button>
+        </div>
+      </div>
+
+      <div class="filters-bar">
+        <div class="form-group">
+          <label>Mes</label>
+          <input type="month" id="filterRegMonth" class="form-control">
+        </div>
+        <div class="form-group">
+          <label>Fondo</label>
+          <select id="filterRegFondo" class="form-control">
+            <option value="">Todos</option>
+            <option value="Personal">Personal</option>
+            <option value="U">U</option>
+            <option value="Ahorro">Ahorro</option>
+            <option value="Inversion">Inversión</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Categoría</label>
+          <select id="filterRegCat" class="form-control">
+            <option value="">Todas</option>
+            <option value="comida">🍔 Comida</option>
+            <option value="transporte">⛽ Transporte</option>
+            <option value="salud">💊 Salud</option>
+            <option value="entretención">🎬 Entretención</option>
+            <option value="ropa">👕 Ropa</option>
+            <option value="hogar">🏠 Hogar</option>
+            <option value="educación">📚 Educación</option>
+            <option value="otro">Otro</option>
+            <option value="uncategorized">⚠ Sin categoría</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Tipo</th>
+              <th>Descripción/Lugar</th>
+              <th>Fondo/Categ</th>
+              <th>Monto</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="registroTableBody">
+            <!-- Renderizado dinamicamente -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- VISTA: ESTADÍSTICAS MENSUALES -->
+    <main id="view-stats-mes" class="view">
+      <div class="filters-bar">
+        <div class="form-group">
+          <label>Mes a analizar</label>
+          <input type="month" id="filterStatsMonth" class="form-control">
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-container">
+          <canvas id="chartIncExpMes"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartCatDonut"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartFondoDonut"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartDebCred"></canvas>
+        </div>
+        <div class="chart-container" style="grid-column: 1 / -1;">
+          <canvas id="chartSaldoEvol"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- VISTA: ESTADÍSTICAS ANUALES -->
+    <main id="view-stats-ano" class="view">
+      <div class="filters-bar">
+        <div class="form-group">
+          <label>Año</label>
+          <input type="number" id="filterStatsYear" class="form-control" value="2026" min="2000" max="2100">
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-container" style="grid-column: 1 / -1;">
+          <canvas id="chartAnualBars"></canvas>
+        </div>
+        <div class="chart-container" style="grid-column: 1 / -1;">
+          <canvas id="chartAhorroAcumulado"></canvas>
+        </div>
+      </div>
+      <div class="section-title">
+        <h3>Top 5 Categorías de Gasto</h3>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Categoría</th><th>Monto Total</th></tr></thead>
+          <tbody id="topCatTableBody"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- VISTA: DEUDAS -->
+    <main id="view-deudas" class="view">
+      <div class="section-title">
+        <h2>Deudas Informales</h2>
+        <button class="btn btn-primary" id="btnAddDeuda">➕ Agregar Deuda</button>
+      </div>
+      <div class="summary-grid">
+        <div class="card"><div class="card-title">Me Deben (Total)</div><div class="card-value text-success" id="sumMeDeben">$0</div></div>
+        <div class="card"><div class="card-title">Les Debo (Total)</div><div class="card-value text-danger" id="sumLesDebo">$0</div></div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Persona</th>
+              <th>Descripción</th>
+              <th>Tipo</th>
+              <th>Monto</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="deudasTableBody"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- VISTA: RECURRENTES -->
+    <main id="view-recurrentes" class="view">
+      <div class="section-title">
+        <h2>Plantillas Recurrentes</h2>
+        <div>
+          <button class="btn btn-primary" id="btnApplyRecurrentes">⚡ Aplicar al mes actual</button>
+          <button class="btn btn-outline" id="btnAddRecurrente">➕ Nueva Plantilla</button>
+        </div>
+      </div>
+      <p class="text-muted mb-4">Define gastos o ingresos fijos (como la mesada o suscripciones). Aplícalos manualmente cada inicio de mes.</p>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>Tipo</th>
+              <th>Descripción/Lugar</th>
+              <th>Detalles</th>
+              <th>Monto</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="recurrentesTableBody"></tbody>
+        </table>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- MODALES PARA FORMULARIOS -->
+  
+  <!-- Modal Transacción (Gasto/Ingreso/Ah/Inv/Cred) -->
+  <div id="modalTx" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTxTitle">Nueva Transacción</h3>
+        <button class="close-modal" data-close="modalTx">&times;</button>
+      </div>
+      <form id="formTx">
+        <input type="hidden" id="txId">
+        <input type="hidden" id="txContext"> <!-- 'ingreso', 'gasto', 'ahorro', 'inversion', 'credito' -->
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="txFecha" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Monto ($)</label>
+            <input type="number" id="txMonto" class="form-control" min="0" required>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Descripción</label>
+          <input type="text" id="txDesc" class="form-control" required>
+        </div>
+
+        <!-- Campos de Gasto Específicos -->
+        <div id="txGroupGasto" style="display:none;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Lugar (Dónde)</label>
+              <input type="text" id="txDonde" class="form-control">
+            </div>
+            <div class="form-group">
+              <label>Categoría</label>
+              <select id="txCat" class="form-control">
+                <option value="">Seleccione...</option>
+                <option value="comida">🍔 Comida</option>
+                <option value="transporte">⛽ Transporte</option>
+                <option value="salud">💊 Salud</option>
+                <option value="entretención">🎬 Entretención</option>
+                <option value="ropa">👕 Ropa</option>
+                <option value="hogar">🏠 Hogar</option>
+                <option value="educación">📚 Educación</option>
+                <option value="otro">Otro</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="txCredito">
+              ¿Pagado con Tarjeta de Crédito?
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="txGroupFondo" style="display:none;">
+          <label>Fondo de Origen/Destino</label>
+          <select id="txFondo" class="form-control">
+            <!-- options se llenan en JS segun el contexto -->
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Guardar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Selector Tipo "Otro" -->
+  <div id="modalSelectOtro" class="modal">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+      <div class="modal-header">
+        <h3>Registrar Otro</h3>
+        <button class="close-modal" data-close="modalSelectOtro">&times;</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <button class="btn btn-success" id="btnSelectAhorro">Ahorro</button>
+        <button class="btn btn-success" id="btnSelectInversion">Inversión</button>
+        <button class="btn btn-outline" id="btnSelectCredito">Pago de Crédito</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Deuda -->
+  <div id="modalDeuda" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalDeudaTitle">Nueva Deuda</h3>
+        <button class="close-modal" data-close="modalDeuda">&times;</button>
+      </div>
+      <form id="formDeuda">
+        <input type="hidden" id="deudaId">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="deudaTipo" class="form-control">
+              <option value="me_deben">Me Deben (Presté de mi plato)</option>
+              <option value="les_debo">Les Debo (Me prestaron plata)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="deudaFecha" class="form-control" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Persona</label>
+          <input type="text" id="deudaPersona" class="form-control" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Monto</label>
+            <input type="number" id="deudaMonto" class="form-control" min="0" required>
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="deudaDesc" class="form-control">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Deuda</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Recurrente -->
+  <div id="modalRecurrente" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalRecurrenteTitle">Plantilla Recurrente</h3>
+        <button class="close-modal" data-close="modalRecurrente">&times;</button>
+      </div>
+      <form id="formRecurrente">
+        <input type="hidden" id="recId">
+        <div class="form-group">
+          <label>Tipo de Plantilla</label>
+          <select id="recTipo" class="form-control">
+            <option value="gasto">Gasto</option>
+            <option value="ingreso">Ingreso</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Descripción (Qué)</label>
+          <input type="text" id="recDesc" class="form-control" required>
+        </div>
+        <div class="form-row">
+           <div class="form-group">
+            <label>Monto</label>
+            <input type="number" id="recMonto" class="form-control" min="0" required>
+          </div>
+          <div class="form-group" id="recGroupLugar">
+            <label>Lugar (Dónde)</label>
+            <input type="text" id="recDonde" class="form-control">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" id="recGroupCat">
+            <label>Categoría</label>
+             <select id="recCat" class="form-control">
+                <option value="">Seleccione...</option>
+                <option value="comida">🍔 Comida</option>
+                <option value="transporte">⛽ Transporte</option>
+                <option value="salud">💊 Salud</option>
+                <option value="entretención">🎬 Entretención</option>
+                <option value="ropa">👕 Ropa</option>
+                <option value="hogar">🏠 Hogar</option>
+                <option value="educación">📚 Educación</option>
+                <option value="otro">Otro</option>
+              </select>
+          </div>
+          <div class="form-group">
+            <label>Fondo</label>
+            <select id="recFondo" class="form-control">
+              <option value="Personal">Personal</option>
+              <option value="U">U</option>
+              <option value="Ahorro">Ahorro</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" id="recGroupCredito">
+           <label class="checkbox-label">
+              <input type="checkbox" id="recCredito">
+              ¿Pagado con Tarjeta de Crédito?
+            </label>
+        </div>
+        <div class="form-group">
+          <label class="checkbox-label">
+             <input type="checkbox" id="recActivo" checked>
+             Plantilla Activa (se aplicará este inicio de mes)
+           </label>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Plantilla</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
