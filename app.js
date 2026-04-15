@@ -107,50 +107,59 @@ function showApp(user) {
 
 // === ALMACENAMIENTO (Firestore + localStorage como caché) ===
 
-function getUserDocRef() {
-  if (!currentUser) return null;
-  return firestore.collection('users').doc(currentUser.uid).collection('finance').doc('data');
+async function saveItem(collectionName, item) {
+  if (!currentUser) return;
+  const docRef = firestore.collection('users').doc(currentUser.uid).collection(collectionName).doc(item.id);
+  await docRef.set(item);
+}
+
+async function deleteItem(collectionName, itemId) {
+  if (!currentUser) return;
+  const docRef = firestore.collection('users').doc(currentUser.uid).collection(collectionName).doc(itemId);
+  await docRef.delete();
 }
 
 async function loadFromFirestore() {
   try {
-    const docRef = getUserDocRef();
-    if (!docRef) return;
-
-    const doc = await docRef.get();
-    if (doc.exists) {
-      const data = doc.data();
-      db = { ...emptyDb(), ...data };
-    } else {
-      // Primera vez: crear documento vacío
-      db = emptyDb();
-      await docRef.set(db);
-    }
-    // Guardar copia local como caché
+    if (!currentUser) return;
+    const collections = ['ingresos', 'gastos', 'ahorros', 'inversiones', 'creditos', 'deudas', 'recurrentes'];
+    const baseRef = firestore.collection('users').doc(currentUser.uid);
+    
+    let newDb = emptyDb();
+    const promises = collections.map(async (coll) => {
+      const snapshot = await baseRef.collection(coll).get();
+      newDb[coll] = snapshot.docs.map(doc => doc.data());
+    });
+    
+    await Promise.all(promises);
+    db = newDb;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
   } catch (err) {
     console.error('Error cargando de Firestore:', err);
-    // Fallback: cargar de localStorage si hay caché
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        db = { ...emptyDb(), ...JSON.parse(raw) };
-      }
+      if (raw) db = { ...emptyDb(), ...JSON.parse(raw) };
     } catch(e) {}
     markUnsaved();
   }
 }
 
 async function saveToFirestore() {
+  if (!currentUser) return;
   try {
-    const docRef = getUserDocRef();
-    if (!docRef) return;
-    await docRef.set(JSON.parse(JSON.stringify(db)));
+    markUnsaved();
+    const promises = [];
+    Object.keys(db).forEach(col => {
+      if (Array.isArray(db[col])) {
+        db[col].forEach(item => promises.push(saveItem(col, item)));
+      }
+    });
+    await Promise.all(promises);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
   } catch (err) {
-    console.error('Error guardando en Firestore:', err);
+    console.error('Error masivo Firestore:', err);
     markUnsaved();
   }
 }
@@ -231,9 +240,26 @@ function markSaved() {
 }
 
 // Llamar cada vez que se agrega/edita/elimina algo
-async function syncData() {
+async function syncData(action, type, item) {
   markUnsaved();
-  await saveToFirestore();
+  try {
+    if (action === 'add' || action === 'edit') {
+      if (Array.isArray(item)) {
+        await Promise.all(item.map(it => saveItem(type, it)));
+      } else {
+        await saveItem(type, item);
+      }
+    } else if (action === 'delete') {
+      await deleteItem(type, item.id || item);
+    }
+    
+    // Save offline cache
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    markSaved();
+  } catch (err) {
+    console.error('Error sincronizando a Firestore:', err);
+    markUnsaved();
+  }
   refreshViews();
 }
 
@@ -527,7 +553,7 @@ function setupRegistroModals() {
     }
 
     document.getElementById('modalTx').classList.remove('active');
-    await syncData();
+    await syncData(isEdit ? 'edit' : 'add', arrMap[ctx], obj);
   });
 }
 
@@ -592,7 +618,7 @@ window.deleteTx = async function(id, type) {
   const arrMap = { ingreso: 'ingresos', gasto: 'gastos', ahorro: 'ahorros', inversion: 'inversiones', credito: 'creditos' };
   
   db[arrMap[type]] = db[arrMap[type]].filter(x => x.id !== id);
-  await syncData();
+  await syncData('delete', arrMap[type], id);
 }
 
 
@@ -631,7 +657,7 @@ function setupDeudasModales() {
       db.deudas.push(obj);
     }
     document.getElementById('modalDeuda').classList.remove('active');
-    await syncData();
+    await syncData(isEdit ? 'edit' : 'add', 'deudas', obj);
   });
 }
 
@@ -679,13 +705,15 @@ function renderDeudas() {
 
 window.toggleDeuda = async function(id) {
   const t = db.deudas.find(x => x.id === id);
-  if (t) t.pagado = !t.pagado;
-  await syncData();
+  if (t) {
+    t.pagado = !t.pagado;
+    await syncData('edit', 'deudas', t);
+  }
 }
 window.deleteDeuda = async function(id) {
   if(!confirm("Borrar deuda?")) return;
   db.deudas = db.deudas.filter(x => x.id !== id);
-  await syncData();
+  await syncData('delete', 'deudas', id);
 }
 
 
@@ -742,7 +770,7 @@ function setupRecurrentesModales() {
     }
     
     document.getElementById('modalRecurrente').classList.remove('active');
-    await syncData();
+    await syncData(isEdit ? 'edit' : 'add', 'recurrentes', obj);
   });
 
   document.getElementById('btnApplyRecurrentes').addEventListener('click', async () => {
@@ -758,6 +786,9 @@ function setupRecurrentesModales() {
     const d = new Date();
     const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+    const nuevosGastos = [];
+    const nuevosIngresos = [];
+
     activos.forEach(rec => {
       let nTx = {
         id: uuidv4(),
@@ -772,12 +803,17 @@ function setupRecurrentesModales() {
         nTx.categoria = rec.categoria;
         nTx.credito = rec.credito;
         db.gastos.push(nTx);
+        nuevosGastos.push(nTx);
       } else {
         db.ingresos.push(nTx);
+        nuevosIngresos.push(nTx);
       }
     });
 
-    await syncData();
+    if (nuevosGastos.length > 0) await syncData('add', 'gastos', nuevosGastos);
+    if (nuevosIngresos.length > 0) await syncData('add', 'ingresos', nuevosIngresos);
+    if (nuevosGastos.length === 0 && nuevosIngresos.length === 0) refreshViews(); // Fallback
+
     alert("Transacciones recurrentes aplicadas con éxito.");
   });
 }
@@ -813,13 +849,15 @@ function renderRecurrentes() {
 
 window.toggleActivoRecurrente = async function(id) {
   const t = db.recurrentes.find(x => x.id === id);
-  if (t) t.activo = !t.activo;
-  await syncData();
+  if (t) {
+    t.activo = !t.activo;
+    await syncData('edit', 'recurrentes', t);
+  }
 }
 window.delRecurrente = async function(id) {
   if(!confirm("¿Borrar plantilla?")) return;
   db.recurrentes = db.recurrentes.filter(x => x.id !== id);
-  await syncData();
+  await syncData('delete', 'recurrentes', id);
 }
 window.editRecurrente = function(id) {
   const r = db.recurrentes.find(x => x.id === id);
