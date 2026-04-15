@@ -251,6 +251,30 @@ nav {
 .welcome-card h2 { font-size: 2rem; margin-bottom: 0.5rem; }
 .welcome-card button { margin-top: 1.5rem; width: 100%; justify-content: center; padding: 1rem !important; }
 
+/* Login Logo */
+.login-logo {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  margin-bottom: 1rem;
+  animation: floatLogo 3s ease-in-out infinite;
+  filter: drop-shadow(0 8px 16px rgba(59, 130, 246, 0.2));
+}
+@keyframes floatLogo {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+/* Author Credit */
+.login-credit {
+  margin-top: 2rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+
 /* Buttons */
 .btn {
   padding: 0.7rem 1.4rem;
