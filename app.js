@@ -336,8 +336,6 @@ function renderResumen() {
   let gPersonal = 0; let gU = 0; let gTotal = 0;
   let gCredito = 0; let gDebito = 0;
   
-  let uncategorized = false;
-
   tx.gastos.forEach(g => {
     const val = Number(g.monto);
     gTotal += val;
@@ -346,14 +344,15 @@ function renderResumen() {
     
     if (g.credito) gCredito += val;
     else gDebito += val;
-
-    if (!g.categoria || g.categoria === 'otro') uncategorized = true;
   });
 
   let iTotal = tx.ingresos.reduce((acc, i) => acc + Number(i.monto), 0);
-  let ahTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0);
-  let invTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0);
+  let ahTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0) + tx.ingresos.filter(i => i.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0);
+  let invTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0) + tx.ingresos.filter(i => i.fondo === 'Inversion' || i.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0);
   let cTotal = tx.creditos.reduce((acc, c) => acc + Number(c.monto), 0);
+  
+  let oldAhTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0);
+  let oldInvTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0);
 
   document.getElementById('sumGastoPersonal').textContent = formatMoney(gPersonal);
   document.getElementById('sumGastoU').textContent = formatMoney(gU);
@@ -373,9 +372,7 @@ function renderResumen() {
   
   document.getElementById('saldoPersonal').textContent = formatMoney(saldoP);
   document.getElementById('saldoU').textContent = formatMoney(saldoUStr);
-  document.getElementById('totalCuenta').textContent = formatMoney(iTotal - gTotal - ahTotal - invTotal - cTotal);
-
-  document.getElementById('uncategorizedWarning').style.display = uncategorized ? 'block' : 'none';
+  document.getElementById('totalCuenta').textContent = formatMoney(iTotal - gTotal - oldAhTotal - oldInvTotal - cTotal);
 
   // Llenar tabla resumen
   const table = document.getElementById('resumenTableBody');
@@ -383,7 +380,12 @@ function renderResumen() {
   
   let allTx = [
     ...tx.gastos.map(g => ({...g, _type: 'Gasto', _color: 'text-danger' })),
-    ...tx.ingresos.map(i => ({...i, _type: 'Ingreso', _color: 'text-success' })),
+    ...tx.ingresos.map(i => {
+      let t = 'Ingreso'; let c = 'text-success';
+      if (i.fondo === 'Ahorro') { t = 'Ahorro'; c = 'text-primary'; }
+      else if (i.fondo === 'Inversion' || i.fondo === 'Inversión') { t = 'Inversión'; c = 'text-primary'; }
+      return {...i, _type: t, _color: c};
+    }),
     ...tx.ahorros.map(a => ({...a, _type: 'Ahorro', _color: 'text-primary' })),
     ...tx.inversiones.map(i => ({...i, _type: 'Inversión', _color: 'text-primary' })),
     ...tx.creditos.map(c => ({...c, _type: 'Pago Créd.', _color: 'text-danger', fecha: c.fecha_pago || c.fecha }))
@@ -422,7 +424,12 @@ function renderRegistro() {
   
   let allTx = [
     ...tx.gastos.map(g => ({...g, _type: 'gasto', _typeLabel: 'Gasto' })),
-    ...tx.ingresos.map(i => ({...i, _type: 'ingreso', _typeLabel: 'Ingreso' })),
+    ...tx.ingresos.map(i => {
+      let l = 'Ingreso';
+      if (i.fondo === 'Ahorro') l = 'Ahorro';
+      else if (i.fondo === 'Inversion' || i.fondo === 'Inversión') l = 'Inversión';
+      return {...i, _type: 'ingreso', _typeLabel: l};
+    }),
     ...tx.ahorros.map(a => ({...a, _type: 'ahorro', _typeLabel: 'Ahorro' })),
     ...tx.inversiones.map(i => ({...i, _type: 'inversion', _typeLabel: 'Inversión' })),
     ...tx.creditos.map(c => ({...c, _type: 'credito', _typeLabel: 'P. Crédito', fecha: c.fecha_pago || c.fecha }))
@@ -477,11 +484,13 @@ function renderRegistro() {
 function setupRegistroModals() {
   document.getElementById('btnAddIngreso').onclick = () => openTxModal('ingreso');
   document.getElementById('btnAddGasto').onclick = () => openTxModal('gasto');
-  document.getElementById('btnAddOtro').onclick = () => document.getElementById('modalSelectOtro').classList.add('active');
-
-  document.getElementById('btnSelectAhorro').onclick = () => { document.getElementById('modalSelectOtro').classList.remove('active'); openTxModal('ahorro'); };
-  document.getElementById('btnSelectInversion').onclick = () => { document.getElementById('modalSelectOtro').classList.remove('active'); openTxModal('inversion'); };
-  document.getElementById('btnSelectCredito').onclick = () => { document.getElementById('modalSelectOtro').classList.remove('active'); openTxModal('credito'); };
+  document.getElementById('btnAddIngresoFijo').onclick = () => {
+    document.getElementById('formRecurrente').reset();
+    document.getElementById('recId').value = '';
+    document.getElementById('recTipo').value = 'ingreso';
+    document.getElementById('recTipo').dispatchEvent(new Event('change'));
+    document.getElementById('modalRecurrente').classList.add('active');
+  };
 
   document.getElementById('formTx').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -971,6 +980,10 @@ function renderStatsAnuales() {
   db.ahorros.filter(a => a.fecha.startsWith(year)).forEach(a => {
     let m = parseInt(a.fecha.split('-')[1]) - 1;
     monthAhorro[m] += Number(a.monto);
+  });
+  db.ingresos.filter(i => i.fecha.startsWith(year) && i.fondo === 'Ahorro').forEach(i => {
+    let m = parseInt(i.fecha.split('-')[1]) - 1;
+    monthAhorro[m] += Number(i.monto);
   });
 
   // Chart 1: Barras apiladas
