@@ -679,6 +679,19 @@ function setupRegistroModals() {
   });
 }
 
+// === CAMBIO DE DIVISA ===
+window.toggleTasaCambio = function(prefix) {
+  const moneda = document.getElementById(prefix + 'Moneda').value;
+  const group = document.getElementById(prefix + 'GroupTasa');
+  if (group && moneda) {
+    if (moneda === 'CLP') {
+      group.style.display = 'none';
+    } else {
+      group.style.display = 'block';
+    }
+  }
+};
+
 function openTxModal(context, editObj = null) {
   document.getElementById('formTx').reset();
   const d = new Date();
