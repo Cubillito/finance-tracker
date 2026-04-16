@@ -507,15 +507,7 @@ function renderResumen() {
 
   applyPrivacySettings();
 
-  // Saldos
-  // Ingresos van a ciertos fondos o simplemente vemos en global.
-  let iPersonal = tx.ingresos.filter(i => i.fondo === 'Personal').reduce((a, b) => a + Number(b.monto), 0);
-  let iU = tx.ingresos.filter(i => i.fondo === 'U').reduce((a, b) => a + Number(b.monto), 0);
-  let saldoP = iPersonal - gPersonal;
-  let saldoUStr = iU - gU;
-  
-  document.getElementById('saldoPersonal').textContent = formatMoney(saldoP);
-  document.getElementById('saldoU').textContent = formatMoney(saldoUStr);
+
 
   // Generar Barras de Presupuesto (Metas) en Resumen y en la Pestaña Metas
   const pList = document.getElementById('budgetProgressList');
