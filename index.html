@@ -13,6 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <!-- Firebase SDK (compat) -->
@@ -39,8 +40,8 @@
 
   <div class="app-container" style="display: none;">
     <header class="header">
-      <div>
-        <h1>Finance Tracker</h1>
+      <div class="brand">
+        <h1 style="font-size: 1.5rem; margin:0;"><span class="material-icons-round" style="vertical-align: middle;">account_balance_wallet</span> FinanceTracker</h1>
       </div>
       <div class="file-status">
         <span id="saveStatus"><span class="indicator saved"></span> Guardado</span>
@@ -55,18 +56,35 @@
     </header>
 
     <nav id="mainNav">
-      <button class="tab-btn active" data-target="view-resumen">Resumen</button>
-      <button class="tab-btn" data-target="view-registro">Registrar</button>
-      <button class="tab-btn" data-target="view-stats-mes">Estadísticas Mensuales</button>
-      <button class="tab-btn" data-target="view-stats-ano">Estadísticas Anuales</button>
-      <button class="tab-btn" data-target="view-deudas">Deudas</button>
-      <button class="tab-btn" data-target="view-recurrentes">Recurrentes</button>
-      <button class="tab-btn" data-target="view-presupuestos">Metas Mensuales</button>
+      <button class="tab-btn active" data-target="view-resumen"><span class="material-icons-round">dashboard</span><span class="tab-text">Resumen</span></button>
+      <button class="tab-btn" data-target="view-registro"><span class="material-icons-round">add_circle</span><span class="tab-text">Registrar</span></button>
+      <button class="tab-btn" data-target="view-stats-mes"><span class="material-icons-round">bar_chart</span><span class="tab-text">Mensuales</span></button>
+      <button class="tab-btn tab-desktop-only" data-target="view-presupuestos"><span class="material-icons-round">track_changes</span><span class="tab-text">Metas</span></button>
+      <button class="tab-btn tab-desktop-only" data-target="view-stats-ano"><span class="material-icons-round">insert_chart_outlined</span><span class="tab-text">Anuales</span></button>
+      <button class="tab-btn tab-desktop-only" data-target="view-deudas"><span class="material-icons-round">handshake</span><span class="tab-text">Deudas</span></button>
+      <button class="tab-btn tab-desktop-only" data-target="view-recurrentes"><span class="material-icons-round">autorenew</span><span class="tab-text">Recurrentes</span></button>
+
+      <button class="tab-btn tab-mobile-only" id="btnMoreMenuToggle" onclick="toggleMoreMenu()"><span class="material-icons-round">menu</span><span class="tab-text">Más</span></button>
     </nav>
+
+    <div id="mobileMoreMenu" class="more-menu glass" style="display:none;">
+      <button class="tab-btn" data-target="view-presupuestos" onclick="toggleMoreMenu()"><span class="material-icons-round">track_changes</span><span class="tab-text">Metas</span></button>
+      <button class="tab-btn" data-target="view-stats-ano" onclick="toggleMoreMenu()"><span class="material-icons-round">insert_chart_outlined</span><span class="tab-text">Estadísticas Anuales</span></button>
+      <button class="tab-btn" data-target="view-deudas" onclick="toggleMoreMenu()"><span class="material-icons-round">handshake</span><span class="tab-text">Deudas</span></button>
+      <button class="tab-btn" data-target="view-recurrentes" onclick="toggleMoreMenu()"><span class="material-icons-round">autorenew</span><span class="tab-text">Recurrentes</span></button>
+    </div>
 
     <!-- VISTA: RESUMEN MENSUAL -->
     <main id="view-resumen" class="view active">
-      <div class="filters-bar">
+      <div class="hero-card">
+        <div class="hero-content">
+          <p class="hero-subtitle">Saldo Total del Mes</p>
+          <h2 class="hero-title" id="heroSaldoTotal">$0</h2>
+        </div>
+        <div class="hero-decoration"></div>
+      </div>
+
+      <div class="filters-bar" style="margin-top: -1rem;">
         <div class="form-group">
           <label>Mes</label>
           <input type="month" id="filterResumenMonth" class="form-control">
@@ -76,16 +94,16 @@
 
 
       <div class="summary-grid">
-        <div class="card"><div class="card-title">Gasto Personal</div><div class="card-value text-danger" id="sumGastoPersonal">$0</div></div>
-        <div class="card"><div class="card-title">Gasto U</div><div class="card-value text-danger" id="sumGastoU">$0</div></div>
-        <div class="card"><div class="card-title">Ahorro Acumulado</div><div class="card-value text-success" id="sumAhorro">$0</div></div>
-        <div class="card"><div class="card-title">Inversión</div><div class="card-value text-success" id="sumInversion">$0</div></div>
-        <div class="card"><div class="card-title">Gasto Crédito</div><div class="card-value" id="sumCredito">$0</div></div>
-        <div class="card"><div class="card-title">Gasto Débito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
+        <div class="card card-danger"><div class="card-title"><span class="material-icons-round">shopping_cart</span> Gasto Personal</div><div class="card-value text-danger" id="sumGastoPersonal">$0</div></div>
+        <div class="card card-danger"><div class="card-title"><span class="material-icons-round">school</span> Gasto U</div><div class="card-value text-danger" id="sumGastoU">$0</div></div>
+        <div class="card card-success"><div class="card-title"><span class="material-icons-round">savings</span> Ahorro Acumulado</div><div class="card-value text-success" id="sumAhorro">$0</div></div>
+        <div class="card card-success"><div class="card-title"><span class="material-icons-round">trending_up</span> Inversión</div><div class="card-value text-success" id="sumInversion">$0</div></div>
+        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">credit_card</span> Gasto Crédito</div><div class="card-value" id="sumCredito">$0</div></div>
+        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">account_balance</span> Gasto Débito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
         
         <!-- Saldos calculados -->
-        <div class="card" style="grid-column: span 1/"><div class="card-title">Saldo Personal</div><div class="card-value text-primary" id="saldoPersonal">$0</div></div>
-        <div class="card" style="grid-column: span 1/"><div class="card-title">Saldo U</div><div class="card-value text-primary" id="saldoU">$0</div></div>
+        <div class="card card-primary" style="grid-column: span 1;"><div class="card-title"><span class="material-icons-round">wallet</span> Saldo Personal</div><div class="card-value text-primary" id="saldoPersonal">$0</div></div>
+        <div class="card card-primary" style="grid-column: span 1;"><div class="card-title"><span class="material-icons-round">backpack</span> Saldo U</div><div class="card-value text-primary" id="saldoU">$0</div></div>
       </div>
 
       <div id="budgetProgressContainer" style="display: none; margin-bottom: 2.5rem;">
@@ -542,6 +560,6 @@
   </div>
 
   <script src="env.js"></script>
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

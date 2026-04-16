@@ -298,22 +298,35 @@ async function syncData(action, type, item) {
 
 // === NAVEGACIÓN Y TABS ===
 
+window.toggleMoreMenu = function() {
+  const menu = document.getElementById('mobileMoreMenu');
+  if (menu.style.display === 'none' || menu.style.display === '') {
+    menu.style.display = 'flex';
+  } else {
+    menu.style.display = 'none';
+  }
+}
+
 function initNav() {
   const tabs = document.querySelectorAll('.tab-btn');
   const views = document.querySelectorAll('.view');
   
   tabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
+      if (tab.id === 'btnMoreMenuToggle') return;
+
       tabs.forEach(t => t.classList.remove('active'));
       views.forEach(v => v.classList.remove('active'));
       
-      const target = e.target.getAttribute('data-target');
-      e.target.classList.add('active');
-      document.getElementById(target).classList.add('active');
+      const target = tab.getAttribute('data-target');
+      if (target) {
+        document.querySelectorAll(`.tab-btn[data-target="${target}"]`).forEach(t => t.classList.add('active'));
+        document.getElementById(target).classList.add('active');
 
-      // Si entramos a Estadísticas, forzar renderizado (para recalcular dimensiones del Canvas)
-      if(target === 'view-stats-mes' || target === 'view-stats-ano'){
-        refreshViews();
+        // Si entramos a Estadísticas, forzar renderizado (para recalcular dimensiones del Canvas)
+        if(target === 'view-stats-mes' || target === 'view-stats-ano' || target === 'view-resumen'){
+          refreshViews();
+        }
       }
     });
   });
@@ -449,6 +462,11 @@ function renderResumen() {
   
   let oldAhTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0);
   let oldInvTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0);
+
+  const heroSaldo = document.getElementById('heroSaldoTotal');
+  if (heroSaldo) {
+    heroSaldo.textContent = formatMoney(iTotal - gTotal);
+  }
 
   document.getElementById('sumGastoPersonal').textContent = formatMoney(gPersonal);
   document.getElementById('sumGastoU').textContent = formatMoney(gU);
