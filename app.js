@@ -443,7 +443,11 @@ function renderResumen() {
   });
 
   let iTotal = tx.ingresos.reduce((acc, i) => acc + Number(i.monto), 0);
-  let ahTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0) + tx.ingresos.filter(i => i.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0);
+  let ahTotal = 
+    db.ingresos.filter(i => i.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0) +
+    db.ahorros.reduce((a, b) => a + Number(b.monto), 0) -
+    db.gastos.filter(g => g.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0);
+  
   let invTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0) + tx.ingresos.filter(i => i.fondo === 'Inversion' || i.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0);
   let cTotal = tx.creditos.reduce((acc, c) => acc + Number(c.monto), 0);
   
@@ -452,8 +456,6 @@ function renderResumen() {
 
   document.getElementById('sumGastoPersonal').textContent = formatMoney(gPersonal);
   document.getElementById('sumGastoU').textContent = formatMoney(gU);
-  document.getElementById('sumGastoTotal').textContent = formatMoney(gTotal);
-  document.getElementById('sumIngresos').textContent = formatMoney(iTotal);
   document.getElementById('sumAhorro').textContent = formatMoney(ahTotal);
   document.getElementById('sumInversion').textContent = formatMoney(invTotal);
   document.getElementById('sumCredito').textContent = formatMoney(gCredito);
@@ -468,7 +470,6 @@ function renderResumen() {
   
   document.getElementById('saldoPersonal').textContent = formatMoney(saldoP);
   document.getElementById('saldoU').textContent = formatMoney(saldoUStr);
-  document.getElementById('totalCuenta').textContent = formatMoney(iTotal - gTotal - oldAhTotal - oldInvTotal - cTotal);
 
   // Generar Barras de Presupuesto (Metas) en Resumen y en la Pestaña Metas
   const pList = document.getElementById('budgetProgressList');
