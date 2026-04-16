@@ -1,15 +1,11 @@
 // app.js
 
 // === FIREBASE CONFIG ===
-const firebaseConfig = {
-  apiKey: "AIzaSyBpwX8bdKx7bnyqCg6_Zyt1P_zPpkl4c64",
-  authDomain: "control-de-finanzas-pers-c9e87.firebaseapp.com",
-  projectId: "control-de-finanzas-pers-c9e87",
-  storageBucket: "control-de-finanzas-pers-c9e87.firebasestorage.app",
-  messagingSenderId: "153776794388",
-  appId: "1:153776794388:web:464c2af8ad373f96d47001",
-  measurementId: "G-DQTXVXR5WQ"
-};
+if (!window.ENV || !window.ENV.firebaseConfig) {
+  alert('Error: Configuración de Firebase no encontrada. Asegúrate de crear el archivo env.js según las instrucciones.');
+}
+
+const firebaseConfig = window.ENV.firebaseConfig;
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();

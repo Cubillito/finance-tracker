@@ -35,3 +35,12 @@ El archivo json sigue este molde principal:
   "recurrentes": []
 }
 ```
+
+## Configuración de Firebase (Variables de Entorno)
+
+Para proteger tus credenciales y no subirlas al repositorio público de GitHub, la configuración de Firebase se carga mediante un archivo de variables de entorno.
+
+**Pasos para configurar tu base de datos localmente:**
+1. En la raíz del proyecto, haz una copia del archivo \`env.example.js\` y nómbrala \`env.js\`.
+2. Edita \`env.js\` con tu propia configuración obtenida de la consola de Firebase.
+3. El archivo \`env.js\` ya está incluido en \`.gitignore\`, por lo que tus credenciales estarán seguras y no se subirán a GitHub.

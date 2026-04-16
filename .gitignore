@@ -70,3 +70,4 @@ node_modules/
 
 # Personal data (no subir datos financieros personales)
 data.json
+env.js
