@@ -470,12 +470,17 @@ function renderResumen() {
   document.getElementById('saldoU').textContent = formatMoney(saldoUStr);
   document.getElementById('totalCuenta').textContent = formatMoney(iTotal - gTotal - oldAhTotal - oldInvTotal - cTotal);
 
-  // Generar Barras de Presupuesto
+  // Generar Barras de Presupuesto (Metas) en Resumen y en la Pestaña Metas
   const pList = document.getElementById('budgetProgressList');
   const pContainer = document.getElementById('budgetProgressContainer');
+  const pCardsList = document.getElementById('budgetProgressCardsList');
+  const pCardsContainer = document.getElementById('budgetProgressCardsContainer');
+
   if (db.presupuestos && db.presupuestos.length > 0) {
-    pContainer.style.display = 'block';
-    pList.innerHTML = '';
+    if(pContainer) pContainer.style.display = 'block';
+    if(pCardsContainer) pCardsContainer.style.display = 'block';
+    if(pList) pList.innerHTML = '';
+    if(pCardsList) pCardsList.innerHTML = '';
     
     let curGastos = {};
     tx.gastos.forEach(g => {
@@ -490,7 +495,7 @@ function renderResumen() {
       if (pct > 100) pct = 100;
       let isDanger = pct >= 90;
 
-      pList.innerHTML += `
+      let htmlCode = `
         <div style="background: rgba(255,255,255,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm);">
           <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem; font-weight:500;">
             <span>${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}</span>
@@ -501,9 +506,12 @@ function renderResumen() {
           </div>
         </div>
       `;
+      if(pList) pList.innerHTML += htmlCode;
+      if(pCardsList) pCardsList.innerHTML += htmlCode;
     });
   } else {
-    pContainer.style.display = 'none';
+    if(pContainer) pContainer.style.display = 'none';
+    if(pCardsContainer) pCardsContainer.style.display = 'none';
   }
 
   // Llenar tabla resumen
@@ -1237,36 +1245,124 @@ function applyTheme(theme) {
   }
 }
 
-// === EXPORTAR A CSV ===
-window.exportCSV = function() {
-  const month = document.getElementById('filterExportMonth').value;
-  if (!month) return alert('Por favor, selecciona un mes para exportar en el campo provisto.');
+// === EXPORTAR A EXCEL (CARTOLA MENSUAL) ===
+window.exportCartolaMensual = function() {
+  const month = document.getElementById('filterStatsMonth').value;
+  if (!month) return alert('Por favor, selecciona un mes a analizar primero.');
+
+  if (typeof XLSX === 'undefined') {
+    return alert('La librería para exportar a Excel no se ha cargado. Verifica tu conexión a internet.');
+  }
   
   const tx = getTransactionsByMonth(month);
-  let rows = [["Fecha", "Tipo", "Categoria o Fondo", "Descripcion / Lugar", "Monto Original", "Moneda", "Monto (CLP)"]];
   
-  let gSum = 0;
-  let iSum = 0;
+  // Consolidar todas las transacciones en una sola lista para simular cartola
+  let allTx = [
+    ...tx.gastos.map(g => ({...g, _type: 'Gasto' })),
+    ...tx.ingresos.map(i => ({...i, _type: 'Ingreso' })),
+    ...tx.ahorros.map(a => ({...a, _type: 'Ahorro' })),
+    ...tx.inversiones.map(inv => ({...inv, _type: 'Inversión' })),
+    ...tx.creditos.map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
+  ];
 
-  tx.ingresos.forEach(i => { rows.push([i.fecha, "Ingreso", i.fondo, i.descripcion, i.montoOriginal || i.monto, i.moneda || 'CLP', i.monto]); iSum += Number(i.monto); });
-  tx.gastos.forEach(g => { rows.push([g.fecha, "Gasto", g.categoria || g.fondo, `${g.donde||''} - ${g.descripcion}`, g.montoOriginal || g.monto, g.moneda || 'CLP', g.monto]); gSum += Number(g.monto); });
-  tx.ahorros.forEach(a => { rows.push([a.fecha, "Ahorro", "-", a.descripcion, a.montoOriginal || a.monto, a.moneda || 'CLP', a.monto]); });
-  tx.inversiones.forEach(inv => { rows.push([inv.fecha, "Inversión", "-", inv.descripcion, inv.montoOriginal || inv.monto, inv.moneda || 'CLP', inv.monto]); });
-  tx.creditos.forEach(c => { rows.push([c.fecha_pago || c.fecha, "Pago Crédito", "-", c.descripcion, c.montoOriginal || c.monto, c.moneda || 'CLP', c.monto]); });
+  // Ordenar cronológicamente (ascendente)
+  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
 
-  rows.push([]);
-  rows.push(["TOTAL INGRESOS", "", "", "", "", "", iSum]);
-  rows.push(["TOTAL GASTOS", "", "", "", "", "", gSum]);
-  rows.push(["SALDO NETO (Flujo Caja)", "", "", "", "", "", iSum - gSum]);
+  generateExcelFromTransactions(allTx, `Cartola_Mensual_${month}`);
+}
 
-  let csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-    + rows.map(e => e.join(";")).join("\n");
+// === EXPORTAR A EXCEL (CARTOLA ANUAL) ===
+window.exportCartolaAnual = function() {
+  const year = document.getElementById('filterStatsYear').value;
+  if (!year) return alert('Por favor, ingresa un año primero.');
+
+  if (typeof XLSX === 'undefined') {
+    return alert('La librería para exportar a Excel no se ha cargado. Verifica tu conexión a internet.');
+  }
+
+  // Filtrar del DB completo por el año
+  const filterFn = (t) => t.fecha && t.fecha.startsWith(year);
+  const filterCredito = (t) => {
+    const f = t.fecha_pago || t.fecha;
+    return f && f.startsWith(year);
+  };
+
+  let allTx = [
+    ...db.gastos.filter(filterFn).map(g => ({...g, _type: 'Gasto' })),
+    ...db.ingresos.filter(filterFn).map(i => ({...i, _type: 'Ingreso' })),
+    ...db.ahorros.filter(filterFn).map(a => ({...a, _type: 'Ahorro' })),
+    ...db.inversiones.filter(filterFn).map(inv => ({...inv, _type: 'Inversión' })),
+    ...db.creditos.filter(filterCredito).map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
+  ];
+
+  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+
+  generateExcelFromTransactions(allTx, `Cartola_Anual_${year}`);
+}
+
+// Funcionalidad base para regenerar la planilla
+function generateExcelFromTransactions(allTx, fileName) {
+  let excelData = [];
+  let saldoAcumulado = 0;
+  
+  allTx.forEach(t => {
+    let cargo = '';
+    let abono = '';
     
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `Reporte_Mensual_${month}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+    if (t._type === 'Ingreso') {
+      abono = Number(t.monto);
+      saldoAcumulado += abono;
+    } else {
+      cargo = Number(t.monto);
+      saldoAcumulado -= cargo;
+    }
+
+    let descripcion = t.descripcion;
+    if (t._type === 'Gasto' && t.donde) {
+      descripcion = `${t.donde} - ${t.descripcion}`;
+    }
+
+    let categoriaFondo = t.categoria || t.fondo || "-";
+    
+    excelData.push({
+      "Fecha": t.fecha,
+      "Tipo": t._type,
+      "Concepto": categoriaFondo,
+      "Descripción": descripcion,
+      "Cargos (-)": cargo,
+      "Abonos (+)": abono,
+      "Saldo Cuenta": saldoAcumulado
+    });
+  });
+
+  excelData.push({ "Fecha": "", "Tipo": "", "Concepto": "", "Descripción": "", "Cargos (-)": "", "Abonos (+)": "", "Saldo Cuenta": "" });
+  
+  let totalCargos = excelData.reduce((acc, curr) => acc + (Number(curr["Cargos (-)"]) || 0), 0);
+  let totalAbonos = excelData.reduce((acc, curr) => acc + (Number(curr["Abonos (+)"]) || 0), 0);
+  
+  excelData.push({
+    "Fecha": "RESUMEN TOTAL",
+    "Tipo": "",
+    "Concepto": "",
+    "Descripción": "",
+    "Cargos (-)": totalCargos,
+    "Abonos (+)": totalAbonos,
+    "Saldo Cuenta": totalAbonos - totalCargos
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(excelData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, `Cartola`);
+
+  worksheet['!cols'] = [
+    { wch: 12 }, 
+    { wch: 15 }, 
+    { wch: 18 }, 
+    { wch: 40 }, 
+    { wch: 12 }, 
+    { wch: 12 }, 
+    { wch: 15 }  
+  ];
+
+  XLSX.writeFile(workbook, `${fileName}.xlsx`);
 }

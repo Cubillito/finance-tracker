@@ -14,6 +14,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -55,7 +56,7 @@
       <button class="tab-btn" data-target="view-stats-ano">Estadísticas Anuales</button>
       <button class="tab-btn" data-target="view-deudas">Deudas</button>
       <button class="tab-btn" data-target="view-recurrentes">Recurrentes</button>
-      <button class="tab-btn" data-target="view-presupuestos">Presupuestos</button>
+      <button class="tab-btn" data-target="view-presupuestos">Metas Mensuales</button>
     </nav>
 
     <!-- VISTA: RESUMEN MENSUAL -->
@@ -87,7 +88,7 @@
 
       <div id="budgetProgressContainer" style="display: none; margin-bottom: 2.5rem;">
         <div class="section-title">
-          <h3>Estado de Presupuestos (Mes Actual)</h3>
+          <h3>Progreso de Metas (Mes Actual)</h3>
         </div>
         <div class="budget-grid" id="budgetProgressList" style="display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
           <!-- Renderizado dinámicamente -->
@@ -183,6 +184,12 @@
           <label>Mes a analizar</label>
           <input type="month" id="filterStatsMonth" class="form-control">
         </div>
+        <div class="form-group" style="margin-left: auto;">
+          <label>Cartola Mensual (Excel)</label>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-success" onclick="exportCartolaMensual()">📥 Descargar Mensual</button>
+          </div>
+        </div>
       </div>
       <div class="charts-grid">
         <div class="chart-container">
@@ -211,10 +218,9 @@
           <input type="number" id="filterStatsYear" class="form-control" value="2026" min="2000" max="2100">
         </div>
         <div class="form-group" style="margin-left: auto;">
-          <label>Exportar Reporte Mensual (CSV)</label>
+          <label>Cartola Anual (Excel)</label>
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <input type="month" id="filterExportMonth" class="form-control">
-            <button class="btn btn-success" onclick="exportCSV()">📥 Descargar CSV</button>
+            <button class="btn btn-success" onclick="exportCartolaAnual()">📥 Descargar Anual</button>
           </div>
         </div>
       </div>
@@ -292,18 +298,28 @@
       </div>
     </main>
 
-    <!-- VISTA: PRESUPUESTOS -->
+    <!-- VISTA: PRESUPUESTOS (METAS) -->
     <main id="view-presupuestos" class="view">
       <div class="section-title">
-        <h2>Presupuestos Mensuales</h2>
+        <h2>Metas Mensuales</h2>
       </div>
-      <p class="text-muted mb-4" style="margin-bottom: 1.5rem;">Define un límite de gasto mensual para cada categoría. El progreso del mes actual se muestra en "Resumen".</p>
+      <p class="text-muted mb-4" style="margin-bottom: 1.5rem;">Define tus límites de gasto (metas) mensuales. Tu progreso del mes actual se calculará automáticamente.</p>
+      
+      <div id="budgetProgressCardsContainer" style="display: none; margin-bottom: 2rem;">
+        <h3>Progreso del Mes Actual</h3>
+        <div class="budget-grid" id="budgetProgressCardsList" style="display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); margin-top: 1rem;">
+          <!-- Renderizado dinámicamente -->
+        </div>
+      </div>
+
       <div class="card" style="max-width: 500px;">
+        <h3>Configurar Metas</h3>
+        <br>
         <form id="formPresupuestos">
           <div id="presupuestosFormContainer">
              <!-- Renderizado por JS -->
           </div>
-          <button type="submit" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">💾 Guardar Presupuestos</button>
+          <button type="submit" class="btn btn-primary" style="margin-top: 1.5rem; width: 100%;">💾 Guardar Metas</button>
         </form>
       </div>
     </main>
@@ -523,6 +539,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
