@@ -466,6 +466,33 @@ nav {
   z-index: 1;
 }
 
+.hero-saldos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1rem;
+}
+.hero-saldo-box {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(5px);
+  padding: 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: transform 0.2s;
+}
+.hero-saldo-box:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.2);
+}
+.hero-saldo-box .card-title {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.8rem;
+}
+.hero-saldo-box .card-value {
+  color: white;
+  font-size: 1.8rem;
+}
+
+
 /* Charts */
 .charts-grid {
   display: grid;

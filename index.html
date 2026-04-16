@@ -77,9 +77,16 @@
     <!-- VISTA: RESUMEN MENSUAL -->
     <main id="view-resumen" class="view active">
       <div class="hero-card">
-        <div class="hero-content">
-          <p class="hero-subtitle">Saldo Total del Mes</p>
-          <h2 class="hero-title" id="heroSaldoTotal">$0</h2>
+        <div class="hero-content" style="width: 100%;">
+          <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <p class="hero-subtitle" style="margin:0;">Saldos Disponibles</p>
+            <button class="btn btn-outline btn-sm glass" style="color:white; border-color:white; padding: 0.3rem 0.6rem;" onclick="openFondosModal()">
+              <span class="material-icons-round" style="font-size: 1.1rem; margin-right: 0;">settings</span>
+            </button>
+          </div>
+          <div id="heroSaldosContainer" class="hero-saldos-grid">
+            <!-- Renderizado dinámicamente -->
+          </div>
         </div>
         <div class="hero-decoration"></div>
       </div>
@@ -96,14 +103,25 @@
       <div class="summary-grid">
         <div class="card card-danger"><div class="card-title"><span class="material-icons-round">shopping_cart</span> Gasto Personal</div><div class="card-value text-danger" id="sumGastoPersonal">$0</div></div>
         <div class="card card-danger"><div class="card-title"><span class="material-icons-round">school</span> Gasto U</div><div class="card-value text-danger" id="sumGastoU">$0</div></div>
-        <div class="card card-success"><div class="card-title"><span class="material-icons-round">savings</span> Ahorro Acumulado</div><div class="card-value text-success" id="sumAhorro">$0</div></div>
-        <div class="card card-success"><div class="card-title"><span class="material-icons-round">trending_up</span> Inversión</div><div class="card-value text-success" id="sumInversion">$0</div></div>
+        
+        <div class="card card-success">
+          <div class="card-title" style="justify-content: space-between; width: 100%;">
+            <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">savings</span> Ahorro</div>
+            <button onclick="togglePrivacy('Ahorro')" style="background:transparent; border:none; cursor:pointer;" title="Ocultar/Mostrar"><span class="material-icons-round text-muted" id="iconPrivacyAhorro" style="font-size: 1.3rem;">visibility</span></button>
+          </div>
+          <div class="card-value text-success privacy-value" id="sumAhorro" data-raw="0">$0</div>
+        </div>
+        
+        <div class="card card-success">
+          <div class="card-title" style="justify-content: space-between; width: 100%;">
+            <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">trending_up</span> Inversión</div>
+            <button onclick="togglePrivacy('Inver')" style="background:transparent; border:none; cursor:pointer;" title="Ocultar/Mostrar"><span class="material-icons-round text-muted" id="iconPrivacyInver" style="font-size: 1.3rem;">visibility</span></button>
+          </div>
+          <div class="card-value text-success privacy-value" id="sumInversion" data-raw="0">$0</div>
+        </div>
+
         <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">credit_card</span> Gasto Crédito</div><div class="card-value" id="sumCredito">$0</div></div>
         <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">account_balance</span> Gasto Débito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
-        
-        <!-- Saldos calculados -->
-        <div class="card card-primary" style="grid-column: span 1;"><div class="card-title"><span class="material-icons-round">wallet</span> Saldo Personal</div><div class="card-value text-primary" id="saldoPersonal">$0</div></div>
-        <div class="card card-primary" style="grid-column: span 1;"><div class="card-title"><span class="material-icons-round">backpack</span> Saldo U</div><div class="card-value text-primary" id="saldoU">$0</div></div>
       </div>
 
       <div id="budgetProgressContainer" style="display: none; margin-bottom: 2.5rem;">
@@ -556,6 +574,30 @@
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Plantilla</button>
       </form>
+    </div>
+  </div>
+
+  <!-- MODAL: AJUSTES DE FONDOS -->
+  <div class="modal" id="modalFondos">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h2><span class="material-icons-round" style="vertical-align: middle;">account_balance</span> Mis Fondos</h2>
+        <button class="close-modal" onclick="document.getElementById('modalFondos').classList.remove('active')">&times;</button>
+      </div>
+      
+      <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;">Configura los nombres de tus cuentas o fondos personales. Al renombrar un fondo, los registros anteriores se actualizarán automáticamente.</p>
+      
+      <div id="fondosListContainer" style="display:flex; flex-direction:column; gap:0.8rem; margin-bottom: 2rem;">
+        <!-- Se insertan por JS -->
+      </div>
+      
+      <div class="form-group" style="display:flex; gap:0.5rem; align-items:end; margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
+        <div style="flex:1;">
+          <label>Añadir Nuevo Fondo</label>
+          <input type="text" id="nuevoFondoName" class="form-control" placeholder="Ej: Cuenta RUT, Billetera">
+        </div>
+        <button class="btn btn-primary" onclick="addFondoConfig()"><span class="material-icons-round">add</span></button>
+      </div>
     </div>
   </div>
 

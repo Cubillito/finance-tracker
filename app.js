@@ -17,19 +17,13 @@ let currentUser = null;
 let appInitialized = false;
 
 let db = {
-  ingresos: [],
-  gastos: [],
-  ahorros: [],
-  inversiones: [],
-  creditos: [],
-  deudas: [],
-  recurrentes: [],
-  presupuestos: []
+  ingresos: [], gastos: [], ahorros: [], inversiones: [],
+  creditos: [], deudas: [], recurrentes: [], presupuestos: [], config: []
 };
 
 const emptyDb = () => ({
   ingresos: [], gastos: [], ahorros: [], inversiones: [],
-  creditos: [], deudas: [], recurrentes: [], presupuestos: []
+  creditos: [], deudas: [], recurrentes: [], presupuestos: [], config: []
 });
 
 // Generador de UUID v4 simple
@@ -119,7 +113,7 @@ async function deleteItem(collectionName, itemId) {
 async function loadFromFirestore() {
   try {
     if (!currentUser) return;
-    const collections = ['ingresos', 'gastos', 'ahorros', 'inversiones', 'creditos', 'deudas', 'recurrentes', 'presupuestos'];
+    const collections = ['ingresos', 'gastos', 'ahorros', 'inversiones', 'creditos', 'deudas', 'recurrentes', 'presupuestos', 'config'];
     const baseRef = firestore.collection('users').doc(currentUser.uid);
     
     let newDb = emptyDb();
@@ -149,6 +143,16 @@ async function loadFromFirestore() {
     }
 
     db = newDb;
+    
+    // Configurar fondos
+    let confFondos = db.config.find(c => c.id === 'userFondos');
+    if (!confFondos) {
+      confFondos = { id: 'userFondos', items: ['Personal', 'U'] };
+      db.config.push(confFondos);
+      saveItem('config', confFondos);
+    }
+    window.userFondos = confFondos.items;
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
 
@@ -463,17 +467,45 @@ function renderResumen() {
   let oldAhTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0);
   let oldInvTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0);
 
-  const heroSaldo = document.getElementById('heroSaldoTotal');
-  if (heroSaldo) {
-    heroSaldo.textContent = formatMoney(iTotal - gTotal);
-  }
-
-  document.getElementById('sumGastoPersonal').textContent = formatMoney(gPersonal);
-  document.getElementById('sumGastoU').textContent = formatMoney(gU);
-  document.getElementById('sumAhorro').textContent = formatMoney(ahTotal);
-  document.getElementById('sumInversion').textContent = formatMoney(invTotal);
+  document.getElementById('sumAhorro').dataset.raw = ahTotal;
+  document.getElementById('sumInversion').dataset.raw = invTotal;
   document.getElementById('sumCredito').textContent = formatMoney(gCredito);
   document.getElementById('sumDebito').textContent = formatMoney(gDebito);
+
+  // Dynamic Saldos Hero
+  const heroContainer = document.getElementById('heroSaldosContainer');
+  if (heroContainer) {
+    heroContainer.innerHTML = '';
+    window.userFondos.forEach(fondo => {
+      let fIngresos = tx.ingresos.filter(i => i.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
+      let fGastos = tx.gastos.filter(g => g.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
+      let saldo = fIngresos - fGastos;
+      
+      heroContainer.innerHTML += `
+        <div class="hero-saldo-box">
+          <div class="card-title">${fondo}</div>
+          <div class="card-value">${formatMoney(saldo)}</div>
+        </div>
+      `;
+    });
+  }
+
+  // Generic Gasto display
+  const sumPers = document.getElementById('sumGastoPersonal');
+  if (sumPers && window.userFondos[0]) {
+    sumPers.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">shopping_cart</span> Gasto ${window.userFondos[0]}`;
+    let g1 = tx.gastos.filter(g => g.fondo === window.userFondos[0]).reduce((a, b) => a + Number(b.monto), 0);
+    sumPers.textContent = formatMoney(g1);
+  } else if (sumPers) sumPers.parentElement.style.display = 'none';
+  
+  const sumU = document.getElementById('sumGastoU');
+  if (sumU && window.userFondos[1]) {
+    sumU.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">school</span> Gasto ${window.userFondos[1]}`;
+    let g2 = tx.gastos.filter(g => g.fondo === window.userFondos[1]).reduce((a, b) => a + Number(b.monto), 0);
+    sumU.textContent = formatMoney(g2);
+  } else if (sumU) sumU.parentElement.style.display = 'none';
+
+  applyPrivacySettings();
 
   // Saldos
   // Ingresos van a ciertos fondos o simplemente vemos en global.
@@ -732,13 +764,15 @@ function openTxModal(context, editObj = null) {
   gGasto.style.display = 'none';
   gFondo.style.display = 'none';
 
+  const userFondosOps = window.userFondos.map(f => `<option value="${f}">${f}</option>`).join('');
+
   if (context === 'gasto') {
     gGasto.style.display = 'block';
     gFondo.style.display = 'block';
-    dFondo.innerHTML = `<option value="Personal">Personal</option><option value="U">U</option><option value="Ahorro">Ahorro</option>`;
+    dFondo.innerHTML = userFondosOps + `<option value="Ahorro">Ahorro</option>`;
   } else if (context === 'ingreso') {
     gFondo.style.display = 'block';
-    dFondo.innerHTML = `<option value="Personal">Personal</option><option value="U">U</option><option value="Ahorro">Ahorro</option><option value="Inversion">Inversión</option>`;
+    dFondo.innerHTML = userFondosOps + `<option value="Ahorro">Ahorro</option><option value="Inversion">Inversión</option>`;
   }
 
   // Si es edicion, poblar data
@@ -1393,4 +1427,112 @@ function generateExcelFromTransactions(allTx, fileName) {
   ];
 
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
+}
+
+// === PRIVACIDAD ===
+window.togglePrivacy = function(type) {
+  const isHidden = localStorage.getItem('hide' + type) === 'true';
+  localStorage.setItem('hide' + type, isHidden ? 'false' : 'true');
+  applyPrivacySettings();
+}
+
+function applyPrivacySettings() {
+  ['Ahorro', 'Inver'].forEach(type => {
+    const isHidden = localStorage.getItem('hide' + type) === 'true';
+    const numEl = type === 'Ahorro' ? document.getElementById('sumAhorro') : document.getElementById('sumInversion');
+    const iconEl = type === 'Ahorro' ? document.getElementById('iconPrivacyAhorro') : document.getElementById('iconPrivacyInver');
+    
+    if (numEl && iconEl) {
+      if (isHidden) {
+        numEl.textContent = '****';
+        iconEl.textContent = 'visibility_off';
+      } else {
+        // Restaurar valor raw formated
+        numEl.textContent = formatMoney(Number(numEl.dataset.raw || 0));
+        iconEl.textContent = 'visibility';
+      }
+    }
+  });
+}
+
+// === FONDOS CONFIG ===
+window.openFondosModal = function() {
+  document.getElementById('modalFondos').classList.add('active');
+  renderFondosList();
+}
+
+function renderFondosList() {
+  const container = document.getElementById('fondosListContainer');
+  let html = '';
+  window.userFondos.forEach((fondo, idx) => {
+    html += `
+      <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.03); padding: 0.8rem 1rem; border-radius: 8px;">
+        <div style="font-weight:500;">${fondo}</div>
+        <div style="display:flex; gap:0.5rem;">
+          <button class="btn btn-outline btn-sm" onclick="renameFondoConfig(${idx})"><span class="material-icons-round text-primary" style="font-size:1.1rem; margin-right:0;">edit</span></button>
+          <button class="btn btn-outline btn-sm" onclick="deleteFondoConfig(${idx})"><span class="material-icons-round text-danger" style="font-size:1.1rem; margin-right:0;">delete</span></button>
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
+}
+
+window.addFondoConfig = async function() {
+  const ipt = document.getElementById('nuevoFondoName');
+  const nf = ipt.value.trim();
+  if (!nf) return;
+  if (window.userFondos.includes(nf) || nf === 'Ahorro' || nf === 'Inversion' || nf === 'Inversión') {
+    alert('Fondo duplicado o reservado.'); return;
+  }
+  window.userFondos.push(nf);
+  ipt.value = '';
+  await saveConfigChange();
+}
+
+window.deleteFondoConfig = async function(idx) {
+  if (window.userFondos.length <= 1) {
+    alert('Debes tener al menos un fondo configurado.');
+    return;
+  }
+  if(confirm('¿Eliminar este fondo? (Las transacciones no se borrarán pero podrían no verse asociadas correctamente en el resumen)')) {
+    window.userFondos.splice(idx, 1);
+    await saveConfigChange();
+  }
+}
+
+window.renameFondoConfig = async function(idx) {
+  const oldName = window.userFondos[idx];
+  const newName = prompt(`Cambiar nombre de ${oldName} a:`, oldName);
+  if (!newName || newName.trim() === '' || newName === oldName) return;
+  
+  if (window.userFondos.includes(newName)) { alert('Ese nombre ya existe.'); return; }
+  
+  window.userFondos[idx] = newName.trim();
+  
+  markUnsaved();
+  // Migración automática de históricos
+  const collections = ['ingresos', 'gastos', 'recurrentes'];
+  const promises = [];
+  collections.forEach(coll => {
+    db[coll].forEach(item => {
+      if (item.fondo === oldName) {
+        item.fondo = newName;
+        promises.push(saveItem(coll, item));
+      }
+    });
+  });
+  
+  await Promise.all(promises);
+  await saveConfigChange();
+  alert(`Fondo actualizado! Se han migrado las transacciones históricas de ${oldName} a ${newName}.`);
+}
+
+async function saveConfigChange() {
+  const doc = db.config.find(c => c.id === 'userFondos');
+  doc.items = window.userFondos;
+  await saveItem('config', doc);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+  renderFondosList();
+  refreshViews();
 }
