@@ -271,6 +271,82 @@ function markSaved() {
   document.getElementById('btnSaveApp').style.display = 'none';
 }
 
+// === TOAST NOTIFICATIONS ===
+function showToast(message, type = 'success', duration = 3500) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification toast-' + type;
+  
+  const icons = {
+    success: 'check_circle',
+    error: 'error',
+    warning: 'warning',
+    info: 'info',
+    confirm: 'help_outline'
+  };
+  
+  toast.innerHTML = `
+    <span class="material-icons-round toast-icon">${icons[type] || icons.info}</span>
+    <span class="toast-message">${message}</span>
+    <button class="toast-close" onclick="this.parentElement.remove()"><span class="material-icons-round">close</span></button>
+  `;
+  toast.style.pointerEvents = 'auto';
+  
+  container.appendChild(toast);
+  
+  // Trigger animation
+  requestAnimationFrame(() => toast.classList.add('toast-show'));
+  
+  if (duration > 0) {
+    setTimeout(() => {
+      toast.classList.remove('toast-show');
+      toast.classList.add('toast-hide');
+      setTimeout(() => toast.remove(), 400);
+    }, duration);
+  }
+  
+  return toast;
+}
+
+function showConfirmToast(message, onConfirm, onCancel) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification toast-confirm';
+  toast.style.pointerEvents = 'auto';
+  
+  toast.innerHTML = `
+    <span class="material-icons-round toast-icon">help_outline</span>
+    <div class="toast-confirm-body">
+      <span class="toast-message">${message}</span>
+      <div class="toast-confirm-actions">
+        <button class="btn btn-danger btn-sm toast-btn-confirm">Sí, eliminar</button>
+        <button class="btn btn-outline btn-sm toast-btn-cancel">Cancelar</button>
+      </div>
+    </div>
+  `;
+  
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('toast-show'));
+  
+  toast.querySelector('.toast-btn-confirm').addEventListener('click', () => {
+    toast.classList.remove('toast-show');
+    toast.classList.add('toast-hide');
+    setTimeout(() => toast.remove(), 400);
+    if (onConfirm) onConfirm();
+  });
+  
+  toast.querySelector('.toast-btn-cancel').addEventListener('click', () => {
+    toast.classList.remove('toast-show');
+    toast.classList.add('toast-hide');
+    setTimeout(() => toast.remove(), 400);
+    if (onCancel) onCancel();
+  });
+}
+
 // Llamar cada vez que se agrega/edita/elimina algo
 async function syncData(action, type, item) {
   markUnsaved();
@@ -375,42 +451,109 @@ function initApp() {
   setupDeudasModales();
   setupRecurrentesModales();
 
-  // Listeners Formulario Presupuesto
-  document.getElementById('formPresupuestos').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const cats = ['comida', 'transporte', 'salud', 'entretención', 'ropa', 'hogar', 'educación', 'otro'];
-    const nuevosPresupuestos = [];
-    cats.forEach(c => {
-      let val = document.querySelector(`input[name="presupuesto_${c}"]`).value;
-      if (val && Number(val) > 0) {
-        nuevosPresupuestos.push({ id: `presupuesto_${c}`, categoria: c, monto: Number(val) });
-      }
-    });
-    db.presupuestos = nuevosPresupuestos;
-    await syncData('add', 'presupuestos', nuevosPresupuestos);
-    alert('Presupuestos guardados correctamente');
-    refreshViews();
-  });
+  // Listeners Formulario Meta
+  setupMetasModal();
 
   refreshViews();
 }
 
-function renderPresupuestosForm() {
-  const cats = ['comida', 'transporte', 'salud', 'entretención', 'ropa', 'hogar', 'educación', 'otro'];
-  const pContainer = document.getElementById('presupuestosFormContainer');
-  pContainer.innerHTML = '';
+function renderMetasList() {
+  const container = document.getElementById('metasListContainer');
+  const noMsg = document.getElementById('noMetasMsg');
+  if (!container) return;
+  container.innerHTML = '';
   
-  cats.forEach(c => {
-    let exist = db.presupuestos ? db.presupuestos.find(p => p.categoria === c) : null;
-    let limit = exist ? exist.monto : '';
-    pContainer.innerHTML += `
-      <div class="form-row" style="align-items: center; margin-bottom: 0.8rem;">
-        <label style="flex:1; margin-bottom:0;">${getIconForCat(c)} ${c.charAt(0).toUpperCase() + c.slice(1)}</label>
-        <div style="flex:2;">
-          <input type="number" class="form-control" name="presupuesto_${c}" value="${limit}" placeholder="Límite en CLP" min="0">
+  if (!db.presupuestos || db.presupuestos.length === 0) {
+    if (noMsg) noMsg.style.display = 'block';
+    return;
+  }
+  if (noMsg) noMsg.style.display = 'none';
+  
+  db.presupuestos.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'padding: 1.2rem; display: flex; justify-content: space-between; align-items: center;';
+    card.innerHTML = `
+      <div>
+        <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem;">
+          ${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}
         </div>
+        <div class="text-muted" style="font-size: 0.9rem;">Límite: ${formatMoney(p.monto)}</div>
+      </div>
+      <div class="action-btns">
+        <button class="btn btn-outline btn-sm" onclick="editMeta('${p.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteMeta('${p.id}')">🗑️</button>
       </div>
     `;
+    container.appendChild(card);
+  });
+}
+
+function setupMetasModal() {
+  document.getElementById('btnAddMeta').onclick = () => {
+    document.getElementById('formMeta').reset();
+    document.getElementById('metaId').value = '';
+    document.getElementById('metaCategoria').disabled = false;
+    document.getElementById('modalMetaTitle').textContent = 'Nueva Meta';
+    document.getElementById('modalMeta').classList.add('active');
+  };
+  
+  document.getElementById('formMeta').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById('metaId').value;
+    const cat = document.getElementById('metaCategoria').value;
+    const monto = Number(document.getElementById('metaMonto').value);
+    
+    if (!cat || !monto || monto <= 0) return;
+    
+    if (editId) {
+      // Editing existing
+      const idx = db.presupuestos.findIndex(p => p.id === editId);
+      if (idx !== -1) {
+        db.presupuestos[idx].categoria = cat;
+        db.presupuestos[idx].monto = monto;
+        await syncData('edit', 'presupuestos', db.presupuestos[idx]);
+        showToast('Meta actualizada correctamente', 'success');
+      }
+    } else {
+      // Check if category already has a goal
+      const exists = db.presupuestos.find(p => p.categoria === cat);
+      if (exists) {
+        showToast('Ya existe una meta para esa categoría. Edítala en su lugar.', 'warning');
+        return;
+      }
+      const obj = { id: `presupuesto_${cat}`, categoria: cat, monto: monto };
+      db.presupuestos.push(obj);
+      await syncData('add', 'presupuestos', obj);
+      showToast('Meta creada correctamente', 'success');
+    }
+    
+    document.getElementById('modalMeta').classList.remove('active');
+    refreshViews();
+  });
+}
+
+window.editMeta = function(id) {
+  const meta = db.presupuestos.find(p => p.id === id);
+  if (!meta) return;
+  
+  document.getElementById('metaId').value = meta.id;
+  document.getElementById('metaCategoria').value = meta.categoria;
+  document.getElementById('metaCategoria').disabled = true; // Can't change category when editing
+  document.getElementById('metaMonto').value = meta.monto;
+  document.getElementById('modalMetaTitle').textContent = 'Editar Meta';
+  document.getElementById('modalMeta').classList.add('active');
+}
+
+window.deleteMeta = function(id) {
+  showConfirmToast('¿Eliminar esta meta?', async () => {
+    const idx = db.presupuestos.findIndex(p => p.id === id);
+    if (idx !== -1) {
+      const removed = db.presupuestos.splice(idx, 1)[0];
+      await syncData('delete', 'presupuestos', removed.id);
+      showToast('Meta eliminada', 'success');
+      refreshViews();
+    }
   });
 }
 
@@ -421,7 +564,7 @@ function refreshViews() {
   renderStatsAnuales();
   renderDeudas();
   renderRecurrentes();
-  renderPresupuestosForm();
+  renderMetasList();
 }
 
 // Funciones Auxiliares de Consulta
@@ -715,6 +858,7 @@ function setupRegistroModals() {
 
     document.getElementById('modalTx').classList.remove('active');
     await syncData(isEdit ? 'edit' : 'add', arrMap[ctx], obj);
+    showToast(isEdit ? 'Registro actualizado correctamente' : 'Registro agregado correctamente', 'success');
   });
 }
 
@@ -799,12 +943,13 @@ window.editTx = function(id, type) {
   if (obj) openTxModal(type, obj);
 }
 
-window.deleteTx = async function(id, type) {
-  if (!confirm("¿Eliminar este registro?")) return;
-  const arrMap = { ingreso: 'ingresos', gasto: 'gastos', ahorro: 'ahorros', inversion: 'inversiones', credito: 'creditos' };
-  
-  db[arrMap[type]] = db[arrMap[type]].filter(x => x.id !== id);
-  await syncData('delete', arrMap[type], id);
+window.deleteTx = function(id, type) {
+  showConfirmToast('¿Eliminar este registro?', async () => {
+    const arrMap = { ingreso: 'ingresos', gasto: 'gastos', ahorro: 'ahorros', inversion: 'inversiones', credito: 'creditos' };
+    db[arrMap[type]] = db[arrMap[type]].filter(x => x.id !== id);
+    await syncData('delete', arrMap[type], id);
+    showToast('Registro eliminado correctamente', 'success');
+  });
 }
 
 
@@ -896,10 +1041,12 @@ window.toggleDeuda = async function(id) {
     await syncData('edit', 'deudas', t);
   }
 }
-window.deleteDeuda = async function(id) {
-  if(!confirm("Borrar deuda?")) return;
-  db.deudas = db.deudas.filter(x => x.id !== id);
-  await syncData('delete', 'deudas', id);
+window.deleteDeuda = function(id) {
+  showConfirmToast('¿Eliminar esta deuda?', async () => {
+    db.deudas = db.deudas.filter(x => x.id !== id);
+    await syncData('delete', 'deudas', id);
+    showToast('Deuda eliminada', 'success');
+  });
 }
 
 
@@ -1048,10 +1195,12 @@ window.toggleActivoRecurrente = async function(id) {
     await syncData('edit', 'recurrentes', t);
   }
 }
-window.delRecurrente = async function(id) {
-  if(!confirm("¿Borrar plantilla?")) return;
-  db.recurrentes = db.recurrentes.filter(x => x.id !== id);
-  await syncData('delete', 'recurrentes', id);
+window.delRecurrente = function(id) {
+  showConfirmToast('¿Eliminar esta plantilla?', async () => {
+    db.recurrentes = db.recurrentes.filter(x => x.id !== id);
+    await syncData('delete', 'recurrentes', id);
+    showToast('Plantilla eliminada', 'success');
+  });
 }
 window.editRecurrente = function(id) {
   const r = db.recurrentes.find(x => x.id === id);
