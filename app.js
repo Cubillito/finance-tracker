@@ -2,7 +2,7 @@
 
 // === FIREBASE CONFIG ===
 if (!window.ENV || !window.ENV.firebaseConfig) {
-  alert('Error: Configuración de Firebase no encontrada. Asegúrate de crear el archivo env.js según las instrucciones.');
+  console.error('Configuración de Firebase no encontrada.');
 }
 
 const firebaseConfig = window.ENV.firebaseConfig;
@@ -67,7 +67,7 @@ async function loginWithGoogle() {
   } catch (err) {
     console.error('Error en login:', err);
     if (err.code !== 'auth/popup-closed-by-user') {
-      alert('Error al iniciar sesión: ' + err.message);
+      showToast('Error al iniciar sesión: ' + err.message, 'error');
     }
   }
 }
@@ -217,7 +217,7 @@ async function exportToFile() {
       a.click();
       URL.revokeObjectURL(a.href);
     }
-    alert('Archivo exportado con éxito.');
+    showToast('Archivo exportado con éxito', 'success');
   } catch (err) {
     if (err.name !== 'AbortError') console.error(err);
   }
@@ -251,7 +251,7 @@ async function importFromFile() {
     }
     await saveToFirestore();
     refreshViews();
-    alert('Datos importados y sincronizados con la nube.');
+    showToast('Datos importados y sincronizados con la nube', 'success');
   } catch (err) {
     if (err.name !== 'AbortError') console.error(err);
   }
@@ -290,27 +290,40 @@ function showToast(message, type = 'success', duration = 3500) {
   toast.innerHTML = `
     <span class="material-icons-round toast-icon">${icons[type] || icons.info}</span>
     <span class="toast-message">${message}</span>
-    <button class="toast-close" onclick="this.parentElement.remove()"><span class="material-icons-round">close</span></button>
+    <button class="toast-close" onclick="dismissToast(this.parentElement)"><span class="material-icons-round">close</span></button>
+    <div class="toast-progress"><div class="toast-progress-bar"></div></div>
   `;
   toast.style.pointerEvents = 'auto';
   
   container.appendChild(toast);
   
   // Trigger animation
-  requestAnimationFrame(() => toast.classList.add('toast-show'));
+  requestAnimationFrame(() => {
+    toast.classList.add('toast-show');
+    const bar = toast.querySelector('.toast-progress-bar');
+    if (bar && duration > 0) {
+      bar.style.transition = `width ${duration}ms linear`;
+      requestAnimationFrame(() => bar.style.width = '0%');
+    }
+  });
   
   if (duration > 0) {
-    setTimeout(() => {
-      toast.classList.remove('toast-show');
-      toast.classList.add('toast-hide');
-      setTimeout(() => toast.remove(), 400);
-    }, duration);
+    toast._timeout = setTimeout(() => dismissToast(toast), duration);
   }
   
   return toast;
 }
 
-function showConfirmToast(message, onConfirm, onCancel) {
+function dismissToast(toast) {
+  if (!toast || toast._dismissed) return;
+  toast._dismissed = true;
+  if (toast._timeout) clearTimeout(toast._timeout);
+  toast.classList.remove('toast-show');
+  toast.classList.add('toast-hide');
+  setTimeout(() => toast.remove(), 400);
+}
+
+function showConfirmToast(message, onConfirm, onCancel, confirmLabel = 'Sí, confirmar') {
   const container = document.getElementById('toastContainer');
   if (!container) return;
 
@@ -323,7 +336,7 @@ function showConfirmToast(message, onConfirm, onCancel) {
     <div class="toast-confirm-body">
       <span class="toast-message">${message}</span>
       <div class="toast-confirm-actions">
-        <button class="btn btn-danger btn-sm toast-btn-confirm">Sí, eliminar</button>
+        <button class="btn btn-danger btn-sm toast-btn-confirm">${confirmLabel}</button>
         <button class="btn btn-outline btn-sm toast-btn-cancel">Cancelar</button>
       </div>
     </div>
@@ -333,17 +346,58 @@ function showConfirmToast(message, onConfirm, onCancel) {
   requestAnimationFrame(() => toast.classList.add('toast-show'));
   
   toast.querySelector('.toast-btn-confirm').addEventListener('click', () => {
-    toast.classList.remove('toast-show');
-    toast.classList.add('toast-hide');
-    setTimeout(() => toast.remove(), 400);
+    dismissToast(toast);
     if (onConfirm) onConfirm();
   });
   
   toast.querySelector('.toast-btn-cancel').addEventListener('click', () => {
-    toast.classList.remove('toast-show');
-    toast.classList.add('toast-hide');
-    setTimeout(() => toast.remove(), 400);
+    dismissToast(toast);
     if (onCancel) onCancel();
+  });
+}
+
+// Prompt modal inline (replaces window.prompt)
+function showPromptModal(title, defaultValue, onConfirm) {
+  const existing = document.getElementById('promptOverlay');
+  if (existing) existing.remove();
+  
+  const overlay = document.createElement('div');
+  overlay.id = 'promptOverlay';
+  overlay.className = 'modal active';
+  overlay.innerHTML = `
+    <div class="modal-content" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>${title}</h3>
+        <button class="close-modal" id="promptClose">&times;</button>
+      </div>
+      <div class="form-group">
+        <input type="text" id="promptInput" class="form-control" value="${defaultValue || ''}">
+      </div>
+      <div style="display: flex; gap: 0.8rem; margin-top: 1rem;">
+        <button class="btn btn-primary" id="promptOk" style="flex:1;">Confirmar</button>
+        <button class="btn btn-outline" id="promptCancel" style="flex:1;">Cancelar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  
+  const input = document.getElementById('promptInput');
+  input.focus();
+  input.select();
+  
+  const close = () => overlay.remove();
+  
+  document.getElementById('promptOk').addEventListener('click', () => {
+    const val = input.value.trim();
+    close();
+    if (val && onConfirm) onConfirm(val);
+  });
+  document.getElementById('promptCancel').addEventListener('click', close);
+  document.getElementById('promptClose').addEventListener('click', close);
+  
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('promptOk').click();
+    if (e.key === 'Escape') close();
   });
 }
 
@@ -1179,50 +1233,54 @@ function setupRecurrentesModales() {
     
     document.getElementById('modalRecurrente').classList.remove('active');
     await syncData(isEdit ? 'edit' : 'add', 'recurrentes', obj);
+    showToast(isEdit ? 'Plantilla actualizada' : 'Plantilla creada correctamente', 'success');
   });
 
   document.getElementById('btnApplyRecurrentes').addEventListener('click', async () => {
     const activos = db.recurrentes.filter(r => r.activo);
-    if(activos.length === 0) return alert("No hay recurrentes activos.");
+    if(activos.length === 0) {
+      showToast('No hay plantillas activas para aplicar', 'warning');
+      return;
+    }
     
-    let msg = "Se agregarán las siguientes transacciones con fecha de HOY:\n\n";
-    activos.forEach(a => msg += `- ${a.descripcion} ($${a.monto})\n`);
-    msg += "\n¿Proceder?";
-    
-    if(!confirm(msg)) return;
+    const items = activos.map(a => `${a.descripcion} (${formatMoney(a.monto)})`).join(', ');
+    showConfirmToast(`¿Aplicar ${activos.length} transacciones recurrentes? (${items})`, async () => {
+      const d = new Date();
+      const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-    const d = new Date();
-    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const nuevosGastos = [];
+      const nuevosIngresos = [];
 
-    const nuevosGastos = [];
-    const nuevosIngresos = [];
+      activos.forEach(rec => {
+        let nTx = {
+          id: uuidv4(),
+          fecha: todayStr,
+          monto: rec.monto,
+          descripcion: rec.descripcion,
+          fondo: rec.fondo,
+          recurrente: true
+        };
+        if (rec.tipo === 'gasto') {
+          nTx.donde = rec.donde;
+          nTx.categoria = rec.categoria;
+          nTx.credito = rec.credito;
+          db.gastos.push(nTx);
+          nuevosGastos.push(nTx);
+        } else {
+          db.ingresos.push(nTx);
+          nuevosIngresos.push(nTx);
+        }
+      });
 
-    activos.forEach(rec => {
-      let nTx = {
-        id: uuidv4(),
-        fecha: todayStr,
-        monto: rec.monto,
-        descripcion: rec.descripcion,
-        fondo: rec.fondo,
-        recurrente: true
-      };
-      if (rec.tipo === 'gasto') {
-        nTx.donde = rec.donde;
-        nTx.categoria = rec.categoria;
-        nTx.credito = rec.credito;
-        db.gastos.push(nTx);
-        nuevosGastos.push(nTx);
-      } else {
-        db.ingresos.push(nTx);
-        nuevosIngresos.push(nTx);
+      try {
+        if (nuevosGastos.length > 0) await syncData('add', 'gastos', nuevosGastos);
+        if (nuevosIngresos.length > 0) await syncData('add', 'ingresos', nuevosIngresos);
+        if (nuevosGastos.length === 0 && nuevosIngresos.length === 0) refreshViews();
+        showToast(`${activos.length} transacciones recurrentes aplicadas`, 'success');
+      } catch(err) {
+        showToast('Error al aplicar recurrentes: ' + err.message, 'error');
       }
-    });
-
-    if (nuevosGastos.length > 0) await syncData('add', 'gastos', nuevosGastos);
-    if (nuevosIngresos.length > 0) await syncData('add', 'ingresos', nuevosIngresos);
-    if (nuevosGastos.length === 0 && nuevosIngresos.length === 0) refreshViews(); // Fallback
-
-    alert("Transacciones recurrentes aplicadas con éxito.");
+    }, null, 'Sí, aplicar');
   });
 }
 
@@ -1260,6 +1318,7 @@ window.toggleActivoRecurrente = async function(id) {
   if (t) {
     t.activo = !t.activo;
     await syncData('edit', 'recurrentes', t);
+    showToast(t.activo ? 'Plantilla activada' : 'Plantilla desactivada', 'info', 2000);
   }
 }
 window.delRecurrente = function(id) {
@@ -1518,10 +1577,11 @@ function applyTheme(theme) {
 // === EXPORTAR A EXCEL (CARTOLA MENSUAL) ===
 window.exportCartolaMensual = function() {
   const month = document.getElementById('filterStatsMonth').value;
-  if (!month) return alert('Por favor, selecciona un mes a analizar primero.');
+  if (!month) { showToast('Selecciona un mes a analizar primero', 'warning'); return; }
 
   if (typeof XLSX === 'undefined') {
-    return alert('La librería para exportar a Excel no se ha cargado. Verifica tu conexión a internet.');
+    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
+    return;
   }
   
   const tx = getTransactionsByMonth(month);
@@ -1544,10 +1604,11 @@ window.exportCartolaMensual = function() {
 // === EXPORTAR A EXCEL (CARTOLA ANUAL) ===
 window.exportCartolaAnual = function() {
   const year = document.getElementById('filterStatsYear').value;
-  if (!year) return alert('Por favor, ingresa un año primero.');
+  if (!year) { showToast('Ingresa un año primero', 'warning'); return; }
 
   if (typeof XLSX === 'undefined') {
-    return alert('La librería para exportar a Excel no se ha cargado. Verifica tu conexión a internet.');
+    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
+    return;
   }
 
   // Filtrar del DB completo por el año
@@ -1691,49 +1752,61 @@ window.addFondoConfig = async function() {
   const nf = ipt.value.trim();
   if (!nf) return;
   if (window.userFondos.includes(nf) || nf === 'Ahorro' || nf === 'Inversion' || nf === 'Inversión') {
-    alert('Fondo duplicado o reservado.'); return;
+    showToast('Ese nombre de fondo ya existe o está reservado', 'warning');
+    return;
   }
   window.userFondos.push(nf);
   ipt.value = '';
   await saveConfigChange();
+  showToast(`Fondo "${nf}" agregado`, 'success');
 }
 
 window.deleteFondoConfig = async function(idx) {
   if (window.userFondos.length <= 1) {
-    alert('Debes tener al menos un fondo configurado.');
+    showToast('Debes tener al menos un fondo configurado', 'warning');
     return;
   }
-  if(confirm('¿Eliminar este fondo? (Las transacciones no se borrarán pero podrían no verse asociadas correctamente en el resumen)')) {
+  const fondoName = window.userFondos[idx];
+  showConfirmToast(`¿Eliminar fondo "${fondoName}"? Las transacciones asociadas no se borrarán`, async () => {
     window.userFondos.splice(idx, 1);
     await saveConfigChange();
-  }
+    showToast(`Fondo "${fondoName}" eliminado`, 'success');
+  }, null, 'Sí, eliminar');
 }
 
 window.renameFondoConfig = async function(idx) {
   const oldName = window.userFondos[idx];
-  const newName = prompt(`Cambiar nombre de ${oldName} a:`, oldName);
-  if (!newName || newName.trim() === '' || newName === oldName) return;
   
-  if (window.userFondos.includes(newName)) { alert('Ese nombre ya existe.'); return; }
-  
-  window.userFondos[idx] = newName.trim();
-  
-  markUnsaved();
-  // Migración automática de históricos
-  const collections = ['ingresos', 'gastos', 'recurrentes'];
-  const promises = [];
-  collections.forEach(coll => {
-    db[coll].forEach(item => {
-      if (item.fondo === oldName) {
-        item.fondo = newName;
-        promises.push(saveItem(coll, item));
-      }
+  showPromptModal(`Renombrar fondo "${oldName}"`, oldName, async (newName) => {
+    if (newName === oldName) return;
+    
+    if (window.userFondos.includes(newName)) {
+      showToast('Ese nombre ya existe', 'warning');
+      return;
+    }
+    
+    window.userFondos[idx] = newName;
+    
+    markUnsaved();
+    const collections = ['ingresos', 'gastos', 'recurrentes', 'deudas'];
+    const promises = [];
+    collections.forEach(coll => {
+      db[coll].forEach(item => {
+        if (item.fondo === oldName) {
+          item.fondo = newName;
+          promises.push(saveItem(coll, item));
+        }
+      });
     });
+    
+    try {
+      await Promise.all(promises);
+      await saveConfigChange();
+      showToast(`Fondo renombrado: ${oldName} → ${newName}. Transacciones migradas.`, 'success', 4500);
+    } catch(err) {
+      showToast('Error al migrar transacciones: ' + err.message, 'error');
+    }
   });
-  
-  await Promise.all(promises);
-  await saveConfigChange();
-  alert(`Fondo actualizado! Se han migrado las transacciones históricas de ${oldName} a ${newName}.`);
 }
 
 async function saveConfigChange() {
