@@ -299,6 +299,7 @@
               <th>Persona</th>
               <th>Descripción</th>
               <th>Tipo</th>
+              <th>Fondo</th>
               <th>Monto</th>
               <th>Estado</th>
               <th>Acciones</th>
@@ -485,6 +486,12 @@
             <input type="text" id="deudaDesc" class="form-control">
           </div>
         </div>
+        <div class="form-group">
+          <label>Fondo asociado</label>
+          <select id="deudaFondo" class="form-control">
+            <!-- Se llena dinámicamente desde JS -->
+          </select>
+        </div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Deuda</button>
       </form>
     </div>
@@ -640,6 +647,6 @@
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

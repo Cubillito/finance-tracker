@@ -954,12 +954,19 @@ window.deleteTx = function(id, type) {
 
 
 // === DEUDAS INFORMALES ===
+function populateDeudaFondos() {
+  const sel = document.getElementById('deudaFondo');
+  if (!sel) return;
+  sel.innerHTML = window.userFondos.map(f => `<option value="${f}">${f}</option>`).join('');
+}
+
 function setupDeudasModales() {
   document.getElementById('btnAddDeuda').onclick = () => {
     document.getElementById('formDeuda').reset();
     document.getElementById('deudaId').value = '';
     const d = new Date();
     document.getElementById('deudaFecha').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    populateDeudaFondos();
     document.getElementById('modalDeuda').classList.add('active');
   };
 
@@ -975,13 +982,14 @@ function setupDeudasModales() {
       monto: Number(document.getElementById('deudaMonto').value),
       descripcion: document.getElementById('deudaDesc').value,
       tipo: document.getElementById('deudaTipo').value,
+      fondo: document.getElementById('deudaFondo').value,
       pagado: false
     };
 
     if (isEdit) {
-      // mantener estado de pagado si ya lo estaba (though un likely si editan via ui)
       const prev = db.deudas.find(d => d.id === id);
       obj.pagado = prev ? prev.pagado : false;
+      obj.fondo = obj.fondo || (prev ? prev.fondo : window.userFondos[0]);
       const idx = db.deudas.findIndex(x => x.id === id);
       if (idx !== -1) db.deudas[idx] = obj;
     } else {
@@ -989,6 +997,7 @@ function setupDeudasModales() {
     }
     document.getElementById('modalDeuda').classList.remove('active');
     await syncData(isEdit ? 'edit' : 'add', 'deudas', obj);
+    showToast(isEdit ? 'Deuda actualizada' : 'Deuda registrada', 'success');
   });
 }
 
@@ -1020,6 +1029,7 @@ function renderDeudas() {
       <td><b>${item.persona}</b></td>
       <td>${item.descripcion}</td>
       <td>${item.tipo === 'me_deben' ? '✅ A Mi Favor' : '⛔ Yo Debo'}</td>
+      <td>${item.fondo || '-'}</td>
       <td class="${item.tipo==='me_deben' ? 'text-success' : 'text-danger'}">${formatMoney(item.monto)}</td>
       <td>${item.pagado ? 'Saldado' : 'Pendiente'}</td>
       <td class="action-btns">
@@ -1036,10 +1046,67 @@ function renderDeudas() {
 
 window.toggleDeuda = async function(id) {
   const t = db.deudas.find(x => x.id === id);
-  if (t) {
-    t.pagado = !t.pagado;
-    await syncData('edit', 'deudas', t);
+  if (!t) return;
+
+  const newPagado = !t.pagado;
+  t.pagado = newPagado;
+
+  const d = new Date();
+  const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const fondo = t.fondo || window.userFondos[0];
+  const txId = 'deuda_tx_' + t.id;
+
+  if (newPagado) {
+    // Crear transacción automática
+    if (t.tipo === 'me_deben') {
+      // Me pagaron → ingreso al fondo correspondiente
+      const ingreso = {
+        id: txId,
+        fecha: todayStr,
+        monto: Number(t.monto),
+        montoOriginal: Number(t.monto),
+        moneda: 'CLP',
+        tasaCambio: 1,
+        descripcion: `Pago deuda: ${t.persona} - ${t.descripcion || 'Sin desc.'}`,
+        fondo: fondo
+      };
+      db.ingresos.push(ingreso);
+      await syncData('add', 'ingresos', ingreso);
+    } else {
+      // Yo pagué → gasto del fondo correspondiente
+      const gasto = {
+        id: txId,
+        fecha: todayStr,
+        monto: Number(t.monto),
+        montoOriginal: Number(t.monto),
+        moneda: 'CLP',
+        tasaCambio: 1,
+        descripcion: `Pago deuda a ${t.persona} - ${t.descripcion || 'Sin desc.'}`,
+        donde: 'Deuda',
+        categoria: 'otro',
+        fondo: fondo,
+        credito: false
+      };
+      db.gastos.push(gasto);
+      await syncData('add', 'gastos', gasto);
+    }
+    showToast(`Deuda saldada. Transacción registrada en ${t.tipo === 'me_deben' ? 'Ingresos' : 'Gastos'} (${fondo})`, 'success');
+  } else {
+    // Deshacer: eliminar la transacción automática
+    const inIdx = db.ingresos.findIndex(x => x.id === txId);
+    if (inIdx !== -1) {
+      db.ingresos.splice(inIdx, 1);
+      await syncData('delete', 'ingresos', txId);
+    }
+    const gaIdx = db.gastos.findIndex(x => x.id === txId);
+    if (gaIdx !== -1) {
+      db.gastos.splice(gaIdx, 1);
+      await syncData('delete', 'gastos', txId);
+    }
+    showToast('Deuda reabierta. Transacción automática eliminada.', 'info');
   }
+
+  await syncData('edit', 'deudas', t);
 }
 window.deleteDeuda = function(id) {
   showConfirmToast('¿Eliminar esta deuda?', async () => {
