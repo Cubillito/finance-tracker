@@ -194,6 +194,13 @@
             <option value="otro">Otro</option>
           </select>
         </div>
+        <div class="form-group" style="margin-left: auto;">
+          <label>Exportar Registros</label>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-success btn-sm" onclick="exportCartolaMensualFromReg()">📥 Mensual</button>
+            <button class="btn btn-outline btn-sm" onclick="exportCartolaAnualFromReg()">📥 Anual</button>
+          </div>
+        </div>
       </div>
 
       <div class="table-container">
@@ -242,6 +249,12 @@
         <div class="chart-container">
           <canvas id="chartDebCred"></canvas>
         </div>
+        <div class="chart-container">
+          <canvas id="chartAhorroMes"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartInversionMes"></canvas>
+        </div>
         <div class="chart-container" style="grid-column: 1 / -1;">
           <canvas id="chartSaldoEvol"></canvas>
         </div>
@@ -266,8 +279,14 @@
         <div class="chart-container" style="grid-column: 1 / -1;">
           <canvas id="chartAnualBars"></canvas>
         </div>
-        <div class="chart-container" style="grid-column: 1 / -1;">
+        <div class="chart-container">
           <canvas id="chartAhorroAcumulado"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartInversionAcumulado"></canvas>
+        </div>
+        <div class="chart-container" style="grid-column: 1 / -1;">
+          <canvas id="chartAhorroInvMensual"></canvas>
         </div>
       </div>
       <div class="section-title">
@@ -647,6 +666,6 @@
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

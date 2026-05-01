@@ -1363,8 +1363,8 @@ window.editRecurrente = function(id) {
 
 
 // === CHART.JS GLOBALS ===
-let chartIncExpMes, chartCatDonut, chartFondoDonut, chartDebCred, chartSaldoEvol;
-let chartAnualBars, chartAhorroAcumulado;
+let chartIncExpMes, chartCatDonut, chartFondoDonut, chartDebCred, chartSaldoEvol, chartAhorroMes, chartInversionMes;
+let chartAnualBars, chartAhorroAcumulado, chartInversionAcumulado, chartAhorroInvMensual;
 
 // Colores Palette
 const colors = {
@@ -1474,6 +1474,50 @@ function renderStatsMensuales() {
     },
     options: { plugins: { title: { display: true, text: 'Evolución del flujo (Ingresos - Gastos diarios)' } } }
   });
+
+  // 6. Ahorro del Mes (desglose por fuente)
+  let ahDesdeIngresos = tx.ingresos.filter(i => i.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0);
+  let ahDesdeAhorros = tx.ahorros.reduce((a, b) => a + Number(b.monto), 0);
+  let ahTotal = ahDesdeIngresos + ahDesdeAhorros;
+
+  if(chartAhorroMes) chartAhorroMes.destroy();
+  chartAhorroMes = new Chart(document.getElementById('chartAhorroMes'), {
+    type: 'bar',
+    data: {
+      labels: ['Desde Ingresos', 'Depósito Directo', 'Total Ahorro'],
+      datasets: [{
+        label: 'Monto CLP',
+        data: [ahDesdeIngresos, ahDesdeAhorros, ahTotal],
+        backgroundColor: [colors.success, '#26a69a', colors.primary]
+      }]
+    },
+    options: {
+      plugins: { title: { display: true, text: 'Ahorro del Mes' } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
+
+  // 7. Inversión del Mes (desglose por fuente)
+  let invDesdeIngresos = tx.ingresos.filter(i => i.fondo === 'Inversion' || i.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0);
+  let invDesdeInversiones = tx.inversiones.reduce((a, b) => a + Number(b.monto), 0);
+  let invTotalMes = invDesdeIngresos + invDesdeInversiones;
+
+  if(chartInversionMes) chartInversionMes.destroy();
+  chartInversionMes = new Chart(document.getElementById('chartInversionMes'), {
+    type: 'bar',
+    data: {
+      labels: ['Desde Ingresos', 'Depósito Directo', 'Total Inversión'],
+      datasets: [{
+        label: 'Monto CLP',
+        data: [invDesdeIngresos, invDesdeInversiones, invTotalMes],
+        backgroundColor: [colors.warning, '#FF9F40', colors.info]
+      }]
+    },
+    options: {
+      plugins: { title: { display: true, text: 'Inversión del Mes' } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
 }
 
 function renderStatsAnuales() {
@@ -1536,7 +1580,53 @@ function renderStatsAnuales() {
         backgroundColor: 'rgba(29, 158, 117, 0.2)'
       }]
     },
-    options: { plugins: { title: { display: true, text: 'Ahorro Realizado en el Año' } } }
+    options: { plugins: { title: { display: true, text: 'Ahorro Acumulado en el Año' } } }
+  });
+
+  // Chart 3: Inversión Acumulada
+  let monthInversion = new Array(12).fill(0);
+  db.inversiones.filter(i => i.fecha.startsWith(year)).forEach(i => {
+    let m = parseInt(i.fecha.split('-')[1]) - 1;
+    monthInversion[m] += Number(i.monto);
+  });
+  db.ingresos.filter(i => i.fecha.startsWith(year) && (i.fondo === 'Inversion' || i.fondo === 'Inversión')).forEach(i => {
+    let m = parseInt(i.fecha.split('-')[1]) - 1;
+    monthInversion[m] += Number(i.monto);
+  });
+
+  let acumInv = 0;
+  let invEvol = monthInversion.map(v => { acumInv += v; return acumInv; });
+  if(chartInversionAcumulado) chartInversionAcumulado.destroy();
+  chartInversionAcumulado = new Chart(document.getElementById('chartInversionAcumulado'), {
+    type: 'line',
+    data: {
+      labels: mNames,
+      datasets: [{
+        label: 'Inversión Acumulada',
+        data: invEvol,
+        borderColor: colors.warning,
+        fill: true,
+        backgroundColor: 'rgba(245, 166, 35, 0.15)'
+      }]
+    },
+    options: { plugins: { title: { display: true, text: 'Inversión Acumulada en el Año' } } }
+  });
+
+  // Chart 4: Ahorro vs Inversión Mensual
+  if(chartAhorroInvMensual) chartAhorroInvMensual.destroy();
+  chartAhorroInvMensual = new Chart(document.getElementById('chartAhorroInvMensual'), {
+    type: 'bar',
+    data: {
+      labels: mNames,
+      datasets: [
+        { label: 'Ahorro', data: monthAhorro, backgroundColor: colors.success },
+        { label: 'Inversión', data: monthInversion, backgroundColor: colors.warning }
+      ]
+    },
+    options: {
+      scales: { x: { stacked: false }, y: { stacked: false, beginAtZero: true } },
+      plugins: { title: { display: true, text: `Ahorro vs Inversión Mensual (${year})` } }
+    }
   });
 
   // Top 5 categorias
@@ -1696,6 +1786,55 @@ function generateExcelFromTransactions(allTx, fileName) {
   ];
 
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
+}
+
+// === EXPORTAR DESDE REGISTRO ===
+window.exportCartolaMensualFromReg = function() {
+  const month = document.getElementById('filterRegMonth').value;
+  if (!month) { showToast('Selecciona un mes primero', 'warning'); return; }
+
+  if (typeof XLSX === 'undefined') {
+    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
+    return;
+  }
+
+  const tx = getTransactionsByMonth(month);
+  let allTx = [
+    ...tx.gastos.map(g => ({...g, _type: 'Gasto' })),
+    ...tx.ingresos.map(i => ({...i, _type: 'Ingreso' })),
+    ...tx.ahorros.map(a => ({...a, _type: 'Ahorro' })),
+    ...tx.inversiones.map(inv => ({...inv, _type: 'Inversión' })),
+    ...tx.creditos.map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
+  ];
+  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+  generateExcelFromTransactions(allTx, `Cartola_Mensual_${month}`);
+}
+
+window.exportCartolaAnualFromReg = function() {
+  const month = document.getElementById('filterRegMonth').value;
+  if (!month) { showToast('Selecciona un mes primero para determinar el año', 'warning'); return; }
+  const year = month.split('-')[0];
+
+  if (typeof XLSX === 'undefined') {
+    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
+    return;
+  }
+
+  const filterFn = (t) => t.fecha && t.fecha.startsWith(year);
+  const filterCredito = (t) => {
+    const f = t.fecha_pago || t.fecha;
+    return f && f.startsWith(year);
+  };
+
+  let allTx = [
+    ...db.gastos.filter(filterFn).map(g => ({...g, _type: 'Gasto' })),
+    ...db.ingresos.filter(filterFn).map(i => ({...i, _type: 'Ingreso' })),
+    ...db.ahorros.filter(filterFn).map(a => ({...a, _type: 'Ahorro' })),
+    ...db.inversiones.filter(filterFn).map(inv => ({...inv, _type: 'Inversión' })),
+    ...db.creditos.filter(filterCredito).map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
+  ];
+  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+  generateExcelFromTransactions(allTx, `Cartola_Anual_${year}`);
 }
 
 // === PRIVACIDAD ===
