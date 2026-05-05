@@ -664,6 +664,14 @@ tbody tr:last-child td { border-bottom: none; }
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.section-title > div {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .tag {
@@ -769,6 +777,9 @@ tbody tr:last-child td { border-bottom: none; }
   .file-status { flex-wrap: wrap; justify-content: center; }
   .form-row { flex-direction: column; gap: 0; }
   .btn { width: 100%; justify-content: center; margin-bottom: 0.5rem; }
+  .section-title .btn { width: auto; margin-bottom: 0; font-size: 0.8rem; padding: 0.5rem 0.8rem; }
+  .action-btns .btn { width: auto; margin-bottom: 0; }
+  .filters-bar .btn { width: auto; margin-bottom: 0; }
   .user-info { border-left: none; padding-left: 0; margin-left: 0; padding-top: 0.5rem; border-top: 1px solid rgba(0,0,0,0.1); }
   .user-name { max-width: 80px; }
   .hero-title { font-size: 2.5rem; }
@@ -876,6 +887,87 @@ tbody tr:last-child td { border-bottom: none; }
   .fab-btn {
     display: flex;
   }
+}
+
+/* FAB Popup Menu */
+.fab-menu {
+  display: none;
+  position: fixed;
+  bottom: 160px;
+  right: 20px;
+  z-index: 1001;
+  flex-direction: column;
+  gap: 0.6rem;
+  animation: fabMenuIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.fab-menu.active {
+  display: flex;
+}
+
+@keyframes fabMenuIn {
+  from { opacity: 0; transform: translateY(15px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.fab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 1.2rem;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  font-family: var(--font-family);
+  white-space: nowrap;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  transition: all 0.2s;
+  width: auto;
+  margin-bottom: 0;
+}
+
+.fab-menu-item:active {
+  transform: scale(0.95);
+}
+
+.fab-menu-item.fab-ingreso {
+  background: var(--color-success);
+  color: white;
+}
+.fab-menu-item.fab-ingreso:hover {
+  background: var(--color-success-dark);
+}
+
+.fab-menu-item.fab-gasto {
+  background: var(--color-danger);
+  color: white;
+}
+.fab-menu-item.fab-gasto:hover {
+  background: var(--color-danger-dark);
+}
+
+.fab-menu-item.fab-fijo {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-solid);
+}
+.fab-menu-item.fab-fijo:hover {
+  background: var(--color-surface);
+}
+
+.fab-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.3);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 1000;
+}
+.fab-overlay.active {
+  display: block;
 }
 
 [data-theme="pink"] .fab-btn {

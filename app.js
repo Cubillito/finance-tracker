@@ -80,11 +80,18 @@ window.logOut = logOut;
 function showLogin() {
   document.getElementById('loginScreen').style.display = 'flex';
   document.querySelector('.app-container').style.display = 'none';
+  // Hide FAB on login
+  const fab = document.getElementById('fabBtn');
+  if (fab) fab.style.display = 'none';
 }
 
 function showApp(user) {
   document.getElementById('loginScreen').style.display = 'none';
   document.querySelector('.app-container').style.display = 'block';
+
+  // Show FAB on mobile
+  const fab = document.getElementById('fabBtn');
+  if (fab && window.innerWidth <= 768) fab.style.display = 'flex';
 
   // Mostrar info del usuario
   const userInfo = document.getElementById('userInfo');
@@ -508,6 +515,9 @@ function initApp() {
   // Listeners Formulario Meta
   setupMetasModal();
 
+  // FAB button (mobile quick add)
+  setupFAB();
+
   refreshViews();
 }
 
@@ -913,6 +923,54 @@ function setupRegistroModals() {
     document.getElementById('modalTx').classList.remove('active');
     await syncData(isEdit ? 'edit' : 'add', arrMap[ctx], obj);
     showToast(isEdit ? 'Registro actualizado correctamente' : 'Registro agregado correctamente', 'success');
+  });
+}
+
+// === FAB BUTTON (Mobile Quick Add) ===
+function setupFAB() {
+  const fabBtn = document.getElementById('fabBtn');
+  const fabMenu = document.getElementById('fabMenu');
+  const fabOverlay = document.getElementById('fabOverlay');
+  if (!fabBtn || !fabMenu || !fabOverlay) return;
+
+  function toggleFabMenu() {
+    const isOpen = fabMenu.classList.contains('active');
+    if (isOpen) {
+      closeFabMenu();
+    } else {
+      fabMenu.classList.add('active');
+      fabOverlay.classList.add('active');
+      fabBtn.style.transform = 'rotate(45deg)';
+    }
+  }
+
+  function closeFabMenu() {
+    fabMenu.classList.remove('active');
+    fabOverlay.classList.remove('active');
+    fabBtn.style.transform = '';
+  }
+
+  fabBtn.addEventListener('click', toggleFabMenu);
+  fabOverlay.addEventListener('click', closeFabMenu);
+
+  document.getElementById('fabIngreso').addEventListener('click', () => {
+    closeFabMenu();
+    openTxModal('ingreso');
+  });
+
+  document.getElementById('fabGasto').addEventListener('click', () => {
+    closeFabMenu();
+    openTxModal('gasto');
+  });
+
+  document.getElementById('fabFijo').addEventListener('click', () => {
+    closeFabMenu();
+    // Open the recurring template modal pre-set to ingreso
+    document.getElementById('formRecurrente').reset();
+    document.getElementById('recId').value = '';
+    document.getElementById('recTipo').value = 'ingreso';
+    document.getElementById('recTipo').dispatchEvent(new Event('change'));
+    document.getElementById('modalRecurrente').classList.add('active');
   });
 }
 

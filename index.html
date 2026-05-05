@@ -660,12 +660,22 @@
   <!-- Toast Notification Container -->
   <div id="toastContainer" style="position: fixed; top: 1.5rem; right: 1.5rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.75rem; pointer-events: none;"></div>
 
+  <!-- FAB Overlay -->
+  <div class="fab-overlay" id="fabOverlay"></div>
+
+  <!-- FAB Popup Menu -->
+  <div class="fab-menu" id="fabMenu">
+    <button class="fab-menu-item fab-ingreso" id="fabIngreso">➕ Ingreso</button>
+    <button class="fab-menu-item fab-gasto" id="fabGasto">➖ Gasto</button>
+    <button class="fab-menu-item fab-fijo" id="fabFijo">🔄 Ingreso Fijo</button>
+  </div>
+
   <!-- Botón Flotante Global (FAB) -->
-  <button class="fab-btn" id="fabBtn" title="Añadir Transacción">
+  <button class="fab-btn" id="fabBtn" title="Añadir Transacción" style="display: none;">
     <span class="material-icons-round">add</span>
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
