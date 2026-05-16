@@ -935,7 +935,7 @@ function setupRegistroModals() {
 
     // Si es ingreso con distribución por fondo (lee inputs inline del panel)
     if (distribuir && !isEdit) {
-      const fondos = window.userFondos || [];
+      const fondos = [...(window.userFondos || []), 'Ahorro', 'Inversión'];
       let total = 0;
       const reglas = fondos.map(fondo => {
         const inp = document.getElementById('txDistPct_' + fondo.replace(/\s+/g, '_'));
@@ -2310,7 +2310,8 @@ function _populateDistribuirInputs() {
   const container = document.getElementById('txDistribuirInputs');
   if (!container) return;
 
-  const fondos = window.userFondos || [];
+  // Todos los fondos disponibles para ingresos (igual que el selector de fondo)
+  const fondos = [...(window.userFondos || []), 'Ahorro', 'Inversión'];
   // Prefill desde regla guardada si existe
   const reglas = window.distribucionReglas || [];
 
@@ -2339,7 +2340,7 @@ function _populateDistribuirInputs() {
 }
 
 window.updateDistribuirTxTotal = function() {
-  const fondos = window.userFondos || [];
+  const fondos = [...(window.userFondos || []), 'Ahorro', 'Inversión'];
   let total = 0;
   fondos.forEach(fondo => {
     const inp = document.getElementById('txDistPct_' + fondo.replace(/\s+/g, '_'));
