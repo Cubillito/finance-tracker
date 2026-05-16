@@ -933,24 +933,39 @@ function setupRegistroModals() {
     let tasa = moneda === 'CLP' ? 1 : Number(document.getElementById('txTasaCambio').value);
     let montoCLP = montoOrig * tasa;
 
-    // Si es ingreso con distribución automática
-    if (distribuir && !isEdit && window.distribucionReglas && window.distribucionReglas.length > 0) {
+    // Si es ingreso con distribución por fondo (lee inputs inline del panel)
+    if (distribuir && !isEdit) {
+      const fondos = window.userFondos || [];
+      let total = 0;
+      const reglas = fondos.map(fondo => {
+        const inp = document.getElementById('txDistPct_' + fondo.replace(/\s+/g, '_'));
+        const pct = Number(inp ? inp.value : 0) || 0;
+        total += pct;
+        return { fondo, porcentaje: pct };
+      }).filter(r => r.porcentaje > 0);
+
+      if (Math.abs(total - 100) >= 0.01) {
+        showToast('La suma de porcentajes debe ser exactamente 100%', 'error');
+        return;
+      }
+
       const fecha = document.getElementById('txFecha').value;
       const descripcion = document.getElementById('txDesc').value;
-      const nuevosIngresos = window.distribucionReglas.map(regla => ({
+      const nuevosIngresos = reglas.map(regla => ({
         id: uuidv4(),
-        fecha: fecha,
+        fecha,
         montoOriginal: montoOrig,
-        moneda: moneda,
+        moneda,
         tasaCambio: tasa,
         monto: Math.round(montoCLP * regla.porcentaje / 100),
-        descripcion: descripcion,
+        descripcion,
         fondo: regla.fondo
       }));
+
       nuevosIngresos.forEach(i => db.ingresos.push(i));
       document.getElementById('modalTx').classList.remove('active');
       await syncData('add', 'ingresos', nuevosIngresos);
-      showToast(`Ingreso distribuido en ${nuevosIngresos.length} fondos según la regla configurada`, 'success', 4000);
+      showToast(`${formatMoney(montoCLP)} distribuido en ${nuevosIngresos.length} fondos`, 'success', 4000);
       return;
     }
 
@@ -1090,11 +1105,12 @@ function openTxModal(context, editObj = null) {
 
   // Mostrar/ocultar checkbox distribuir (solo para ingreso nuevo)
   const gDistribuir = document.getElementById('txGroupDistribuir');
+  const panel = document.getElementById('txDistribuirPanel');
+  const chk = document.getElementById('txDistribuir');
   if (gDistribuir) {
-    const tieneRegla = window.distribucionReglas && window.distribucionReglas.length > 0;
-    gDistribuir.style.display = (context === 'ingreso' && !editObj && tieneRegla) ? 'block' : 'none';
-    const chk = document.getElementById('txDistribuir');
+    gDistribuir.style.display = context === 'ingreso' && !editObj ? 'block' : 'none';
     if (chk) chk.checked = false;
+    if (panel) panel.style.display = 'none';
   }
 
   // Si es edicion, poblar data
@@ -2271,4 +2287,74 @@ window.saveDistribucionReglas = async function() {
   document.getElementById('modalDistribucion').classList.remove('active');
   showToast('Regla de distribución guardada correctamente', 'success');
 };
+
+
+// === PANEL INLINE DE DISTRIBUCIÓN EN MODAL DE INGRESO ===
+window.toggleDistribuirPanel = function() {
+  const chk = document.getElementById('txDistribuir');
+  const panel = document.getElementById('txDistribuirPanel');
+  const gFondo = document.getElementById('txGroupFondo');
+  if (!chk || !panel) return;
+
+  if (chk.checked) {
+    panel.style.display = 'block';
+    if (gFondo) gFondo.style.display = 'none'; // Ocultar selector de fondo único
+    _populateDistribuirInputs();
+  } else {
+    panel.style.display = 'none';
+    if (gFondo) gFondo.style.display = 'block'; // Restaurar selector de fondo único
+  }
+};
+
+function _populateDistribuirInputs() {
+  const container = document.getElementById('txDistribuirInputs');
+  if (!container) return;
+
+  const fondos = window.userFondos || [];
+  // Prefill desde regla guardada si existe
+  const reglas = window.distribucionReglas || [];
+
+  container.innerHTML = '';
+  fondos.forEach(fondo => {
+    const regla = reglas.find(r => r.fondo === fondo);
+    const pct = regla ? regla.porcentaje : 0;
+    const safeId = 'txDistPct_' + fondo.replace(/\s+/g, '_');
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.8rem;';
+    row.innerHTML = `
+      <label style="font-weight:500; flex:1; font-size:0.9rem;">${fondo}</label>
+      <div style="display:flex; align-items:center; gap:0.4rem;">
+        <input type="number" id="${safeId}" class="form-control"
+               min="0" max="100" step="0.1" value="${pct}"
+               style="width:80px; text-align:right; padding: 0.5rem 0.6rem;"
+               oninput="updateDistribuirTxTotal()">
+        <span style="font-weight:500; color:var(--color-text-muted);">%</span>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+
+  updateDistribuirTxTotal();
+}
+
+window.updateDistribuirTxTotal = function() {
+  const fondos = window.userFondos || [];
+  let total = 0;
+  fondos.forEach(fondo => {
+    const inp = document.getElementById('txDistPct_' + fondo.replace(/\s+/g, '_'));
+    if (inp) total += Number(inp.value) || 0;
+  });
+
+  const totalEl = document.getElementById('txDistribuirTotal');
+  const errorEl = document.getElementById('txDistribuirError');
+  const ok = Math.abs(total - 100) < 0.01;
+
+  if (totalEl) {
+    totalEl.textContent = total.toFixed(1) + '%';
+    totalEl.style.color = ok ? 'var(--color-success)' : 'var(--color-danger)';
+  }
+  if (errorEl) errorEl.style.display = ok ? 'none' : 'block';
+};
+
 
