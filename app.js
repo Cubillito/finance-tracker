@@ -21,6 +21,9 @@ let db = {
   creditos: [], deudas: [], recurrentes: [], presupuestos: [], config: []
 };
 
+// Distribución de ingresos (porcentajes por fondo)
+window.distribucionReglas = null;
+
 const emptyDb = () => ({
   ingresos: [], gastos: [], ahorros: [], inversiones: [],
   creditos: [], deudas: [], recurrentes: [], presupuestos: [], config: []
@@ -159,6 +162,14 @@ async function loadFromFirestore() {
       saveItem('config', confFondos);
     }
     window.userFondos = confFondos.items;
+
+    // Configurar distribución de ingresos
+    let confDist = db.config.find(c => c.id === 'ingresosDistribucion');
+    if (confDist) {
+      window.distribucionReglas = confDist.reglas;
+    } else {
+      window.distribucionReglas = null;
+    }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
     markSaved();
@@ -534,13 +545,14 @@ function renderMetasList() {
   if (noMsg) noMsg.style.display = 'none';
   
   db.presupuestos.forEach(p => {
+    const fondoLabel = p.fondo ? ` — ${p.fondo}` : '';
     const card = document.createElement('div');
     card.className = 'card';
     card.style.cssText = 'padding: 1.2rem; display: flex; justify-content: space-between; align-items: center;';
     card.innerHTML = `
       <div>
         <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem;">
-          ${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}
+          ${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}${fondoLabel}
         </div>
         <div class="text-muted" style="font-size: 0.9rem;">Límite: ${formatMoney(p.monto)}</div>
       </div>
@@ -554,11 +566,20 @@ function renderMetasList() {
 }
 
 function setupMetasModal() {
+  // Llenar el select de fondos dinámicamente
+  function populateMetaFondos() {
+    const sel = document.getElementById('metaFondo');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Todos los fondos</option>' +
+      (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('');
+  }
+
   document.getElementById('btnAddMeta').onclick = () => {
     document.getElementById('formMeta').reset();
     document.getElementById('metaId').value = '';
     document.getElementById('metaCategoria').disabled = false;
     document.getElementById('modalMetaTitle').textContent = 'Nueva Meta';
+    populateMetaFondos();
     document.getElementById('modalMeta').classList.add('active');
   };
   
@@ -566,27 +587,31 @@ function setupMetasModal() {
     e.preventDefault();
     const editId = document.getElementById('metaId').value;
     const cat = document.getElementById('metaCategoria').value;
+    const fondo = document.getElementById('metaFondo').value || null;
     const monto = Number(document.getElementById('metaMonto').value);
     
     if (!cat || !monto || monto <= 0) return;
     
+    // ID incluye fondo para permitir misma categoría en distintos fondos
+    const newId = editId || `presupuesto_${cat}_${fondo || 'all'}`;
+    
     if (editId) {
-      // Editing existing
       const idx = db.presupuestos.findIndex(p => p.id === editId);
       if (idx !== -1) {
         db.presupuestos[idx].categoria = cat;
         db.presupuestos[idx].monto = monto;
+        db.presupuestos[idx].fondo = fondo;
         await syncData('edit', 'presupuestos', db.presupuestos[idx]);
         showToast('Meta actualizada correctamente', 'success');
       }
     } else {
-      // Check if category already has a goal
-      const exists = db.presupuestos.find(p => p.categoria === cat);
+      // Check if category+fondo combination already has a goal
+      const exists = db.presupuestos.find(p => p.categoria === cat && (p.fondo || null) === fondo);
       if (exists) {
-        showToast('Ya existe una meta para esa categoría. Edítala en su lugar.', 'warning');
+        showToast('Ya existe una meta para esa categoría y fondo. Edítala en su lugar.', 'warning');
         return;
       }
-      const obj = { id: `presupuesto_${cat}`, categoria: cat, monto: monto };
+      const obj = { id: newId, categoria: cat, monto: monto, fondo: fondo };
       db.presupuestos.push(obj);
       await syncData('add', 'presupuestos', obj);
       showToast('Meta creada correctamente', 'success');
@@ -601,9 +626,17 @@ window.editMeta = function(id) {
   const meta = db.presupuestos.find(p => p.id === id);
   if (!meta) return;
   
+  // Repopulate fondo options
+  const sel = document.getElementById('metaFondo');
+  if (sel) {
+    sel.innerHTML = '<option value="">Todos los fondos</option>' +
+      (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('');
+  }
+
   document.getElementById('metaId').value = meta.id;
   document.getElementById('metaCategoria').value = meta.categoria;
-  document.getElementById('metaCategoria').disabled = true; // Can't change category when editing
+  document.getElementById('metaCategoria').disabled = true;
+  if (sel) sel.value = meta.fondo || '';
   document.getElementById('metaMonto').value = meta.monto;
   document.getElementById('modalMetaTitle').textContent = 'Editar Meta';
   document.getElementById('modalMeta').classList.add('active');
@@ -735,16 +768,26 @@ function renderResumen() {
     });
 
     db.presupuestos.forEach(p => {
-      let spent = curGastos[p.categoria] || 0;
+      // Calcular gasto según el fondo de la meta
+      let spent;
+      if (p.fondo) {
+        // Solo gastos de esa categoría en ese fondo específico
+        spent = tx.gastos.filter(g => g.categoria === p.categoria && g.fondo === p.fondo)
+          .reduce((a, b) => a + Number(b.monto), 0);
+      } else {
+        // Todos los gastos de esa categoría en todos los fondos
+        spent = curGastos[p.categoria] || 0;
+      }
       let limit = p.monto;
       let pct = (spent / limit) * 100;
       if (pct > 100) pct = 100;
       let isDanger = pct >= 90;
+      const fondoLabel = p.fondo ? ` — ${p.fondo}` : '';
 
       let htmlCode = `
         <div style="background: rgba(255,255,255,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm);">
           <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem; font-weight:500;">
-            <span>${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}</span>
+            <span>${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}${fondoLabel}</span>
             <span class="text-muted">${formatMoney(spent)} / ${formatMoney(limit)}</span>
           </div>
           <div class="progress-bar">
@@ -883,11 +926,33 @@ function setupRegistroModals() {
     const id = document.getElementById('txId').value || uuidv4();
     const ctx = document.getElementById('txContext').value;
     const isEdit = document.getElementById('txId').value !== '';
+    const distribuir = ctx === 'ingreso' && document.getElementById('txDistribuir').checked;
 
     let montoOrig = Number(document.getElementById('txMonto').value);
     let moneda = document.getElementById('txMoneda').value;
     let tasa = moneda === 'CLP' ? 1 : Number(document.getElementById('txTasaCambio').value);
     let montoCLP = montoOrig * tasa;
+
+    // Si es ingreso con distribución automática
+    if (distribuir && !isEdit && window.distribucionReglas && window.distribucionReglas.length > 0) {
+      const fecha = document.getElementById('txFecha').value;
+      const descripcion = document.getElementById('txDesc').value;
+      const nuevosIngresos = window.distribucionReglas.map(regla => ({
+        id: uuidv4(),
+        fecha: fecha,
+        montoOriginal: montoOrig,
+        moneda: moneda,
+        tasaCambio: tasa,
+        monto: Math.round(montoCLP * regla.porcentaje / 100),
+        descripcion: descripcion,
+        fondo: regla.fondo
+      }));
+      nuevosIngresos.forEach(i => db.ingresos.push(i));
+      document.getElementById('modalTx').classList.remove('active');
+      await syncData('add', 'ingresos', nuevosIngresos);
+      showToast(`Ingreso distribuido en ${nuevosIngresos.length} fondos según la regla configurada`, 'success', 4000);
+      return;
+    }
 
     let obj = {
       id: id,
@@ -907,7 +972,7 @@ function setupRegistroModals() {
     } else if (ctx === 'ingreso') {
       obj.fondo = document.getElementById('txFondo').value;
     } else if (ctx === 'credito') {
-      obj.fecha_pago = obj.fecha; // alias para mantener db contenta
+      obj.fecha_pago = obj.fecha;
     }
 
     const arrMap = { ingreso: 'ingresos', gasto: 'gastos', ahorro: 'ahorros', inversion: 'inversiones', credito: 'creditos' };
@@ -1021,6 +1086,15 @@ function openTxModal(context, editObj = null) {
   } else if (context === 'ingreso') {
     gFondo.style.display = 'block';
     dFondo.innerHTML = userFondosOps + `<option value="Ahorro">Ahorro</option><option value="Inversion">Inversión</option>`;
+  }
+
+  // Mostrar/ocultar checkbox distribuir (solo para ingreso nuevo)
+  const gDistribuir = document.getElementById('txGroupDistribuir');
+  if (gDistribuir) {
+    const tieneRegla = window.distribucionReglas && window.distribucionReglas.length > 0;
+    gDistribuir.style.display = (context === 'ingreso' && !editObj && tieneRegla) ? 'block' : 'none';
+    const chk = document.getElementById('txDistribuir');
+    if (chk) chk.checked = false;
   }
 
   // Si es edicion, poblar data
@@ -1576,6 +1650,9 @@ function renderStatsMensuales() {
       scales: { y: { beginAtZero: true } }
     }
   });
+
+  // 8. Gráficos por Fondo
+  renderChartsPorFondo(tx);
 }
 
 function renderStatsAnuales() {
@@ -2014,3 +2091,184 @@ async function saveConfigChange() {
   renderFondosList();
   refreshViews();
 }
+
+
+// === GRÁFICOS POR FONDO (Estadísticas Mensuales) ===
+let chartsPorFondo = {};
+
+function renderChartsPorFondo(tx) {
+  const container = document.getElementById('chartsPerFondoContainer');
+  if (!container) return;
+
+  // Destruir gráficos anteriores
+  Object.values(chartsPorFondo).forEach(c => { try { c.destroy(); } catch(e) {} });
+  chartsPorFondo = {};
+  container.innerHTML = '';
+
+  const fondos = window.userFondos || [];
+  if (fondos.length === 0) return;
+
+  // Sección título
+  const titleEl = document.createElement('div');
+  titleEl.className = 'section-title';
+  titleEl.style.marginTop = '2rem';
+  titleEl.innerHTML = '<h3>Estadísticas por Fondo</h3>';
+  container.appendChild(titleEl);
+
+  // --- Chart 1: Ingresos vs Gastos por Fondo (barras agrupadas) ---
+  const fondoIngTotals = fondos.map(f => tx.ingresos.filter(i => i.fondo === f).reduce((a, b) => a + Number(b.monto), 0));
+  const fondoGasTotals = fondos.map(f => tx.gastos.filter(g => g.fondo === f).reduce((a, b) => a + Number(b.monto), 0));
+
+  const barWrapper = document.createElement('div');
+  barWrapper.className = 'charts-grid';
+  barWrapper.style.marginBottom = '1.5rem';
+
+  const barContainer = document.createElement('div');
+  barContainer.className = 'chart-container';
+  barContainer.style.gridColumn = '1 / -1';
+  const barCanvas = document.createElement('canvas');
+  barCanvas.id = 'chartFondoIncExp';
+  barContainer.appendChild(barCanvas);
+  barWrapper.appendChild(barContainer);
+  container.appendChild(barWrapper);
+
+  chartsPorFondo['incexp'] = new Chart(barCanvas, {
+    type: 'bar',
+    data: {
+      labels: fondos,
+      datasets: [
+        { label: 'Ingresos', data: fondoIngTotals, backgroundColor: colors.success },
+        { label: 'Gastos', data: fondoGasTotals, backgroundColor: colors.danger }
+      ]
+    },
+    options: {
+      plugins: { title: { display: true, text: 'Ingresos vs Gastos por Fondo' } },
+      scales: { x: { stacked: false }, y: { stacked: false, beginAtZero: true } }
+    }
+  });
+
+  // --- Chart 2+: Donut de gastos por categoría para cada fondo ---
+  const donutGrid = document.createElement('div');
+  donutGrid.className = 'charts-grid';
+  container.appendChild(donutGrid);
+
+  fondos.forEach(fondo => {
+    const fondoGastos = tx.gastos.filter(g => g.fondo === fondo);
+    const catSums = {};
+    fondoGastos.forEach(g => {
+      const c = g.categoria || 'Sin categoría';
+      catSums[c] = (catSums[c] || 0) + Number(g.monto);
+    });
+
+    const donutContainer = document.createElement('div');
+    donutContainer.className = 'chart-container';
+    const donutCanvas = document.createElement('canvas');
+    const canvasId = `chartFondoCat_${fondo.replace(/\s+/g, '_')}`;
+    donutCanvas.id = canvasId;
+    donutContainer.appendChild(donutCanvas);
+    donutGrid.appendChild(donutContainer);
+
+    if (Object.keys(catSums).length === 0) {
+      // Sin datos: mostrar mensaje
+      const msg = document.createElement('p');
+      msg.className = 'text-muted';
+      msg.style.cssText = 'text-align:center; padding-top: 2rem; font-size:0.9rem;';
+      msg.textContent = `Sin gastos registrados en ${fondo}`;
+      donutContainer.appendChild(msg);
+      return;
+    }
+
+    chartsPorFondo[fondo] = new Chart(donutCanvas, {
+      type: 'doughnut',
+      data: {
+        labels: Object.keys(catSums),
+        datasets: [{ data: Object.values(catSums), backgroundColor: colors.cat }]
+      },
+      options: {
+        plugins: { title: { display: true, text: `Gastos por Categoría — ${fondo}` } }
+      }
+    });
+  });
+}
+
+
+// === DISTRIBUCIÓN DE INGRESOS ===
+window.openDistribucionModal = function() {
+  const container = document.getElementById('distribucionInputsContainer');
+  if (!container) return;
+
+  const fondos = window.userFondos || [];
+  const reglas = window.distribucionReglas || [];
+
+  container.innerHTML = '';
+  fondos.forEach(fondo => {
+    const regla = reglas.find(r => r.fondo === fondo);
+    const pct = regla ? regla.porcentaje : 0;
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.03); padding: 0.8rem 1rem; border-radius: 8px;';
+    row.innerHTML = `
+      <div style="font-weight:500; flex:1;">${fondo}</div>
+      <div style="display:flex; align-items:center; gap:0.5rem;">
+        <input type="number" id="distPct_${fondo.replace(/\s+/g,'_')}" 
+               class="form-control" min="0" max="100" step="0.1" value="${pct}"
+               style="width:90px; text-align:right;"
+               oninput="updateDistribucionTotal()">
+        <span>%</span>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+
+  updateDistribucionTotal();
+  document.getElementById('modalDistribucion').classList.add('active');
+};
+
+window.updateDistribucionTotal = function() {
+  const fondos = window.userFondos || [];
+  let total = 0;
+  fondos.forEach(fondo => {
+    const inp = document.getElementById('distPct_' + fondo.replace(/\s+/g, '_'));
+    if (inp) total += Number(inp.value) || 0;
+  });
+  const totalEl = document.getElementById('distribucionTotal');
+  const errorEl = document.getElementById('distribucionError');
+  if (totalEl) {
+    totalEl.textContent = total.toFixed(1) + '%';
+    totalEl.style.color = Math.abs(total - 100) < 0.01 ? 'var(--color-success)' : 'var(--color-danger)';
+  }
+  if (errorEl) errorEl.style.display = Math.abs(total - 100) < 0.01 ? 'none' : 'block';
+};
+
+window.saveDistribucionReglas = async function() {
+  const fondos = window.userFondos || [];
+  let total = 0;
+  const reglas = fondos.map(fondo => {
+    const inp = document.getElementById('distPct_' + fondo.replace(/\s+/g, '_'));
+    const pct = Number(inp ? inp.value : 0) || 0;
+    total += pct;
+    return { fondo: fondo, porcentaje: pct };
+  });
+
+  if (Math.abs(total - 100) >= 0.01) {
+    showToast('La suma de porcentajes debe ser exactamente 100%', 'error');
+    return;
+  }
+
+  window.distribucionReglas = reglas;
+
+  // Persistir en db.config
+  let confDist = db.config.find(c => c.id === 'ingresosDistribucion');
+  if (confDist) {
+    confDist.reglas = reglas;
+  } else {
+    confDist = { id: 'ingresosDistribucion', reglas: reglas };
+    db.config.push(confDist);
+  }
+  await saveItem('config', confDist);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+
+  document.getElementById('modalDistribucion').classList.remove('active');
+  showToast('Regla de distribución guardada correctamente', 'success');
+};
+
