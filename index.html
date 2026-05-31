@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -28,11 +28,11 @@
   <!-- Pantalla de Login -->
   <div id="loginScreen" class="overlay-welcome">
     <div class="welcome-card">
-      <h2>ðŸ’¸ Finance Tracker</h2>
-      <p class="text-muted" style="margin: 1rem 0;">Inicia sesiÃ³n para acceder a tus finanzas desde cualquier dispositivo.</p>
+      <h2>­ƒÆ© Finance Tracker</h2>
+      <p class="text-muted" style="margin: 1rem 0;">Inicia sesi├│n para acceder a tus finanzas desde cualquier dispositivo.</p>
       <button id="btnGoogleLogin" class="btn btn-google">
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-        Iniciar sesiÃ³n con Google
+        Iniciar sesi├│n con Google
       </button>
       <p class="text-muted" style="margin-top: 1.5rem; font-size: 0.8rem;">Tus datos se guardan en la nube de forma privada y segura.</p>
       <p class="login-credit">Creada por Ignacio Cubillos Leal</p>
@@ -46,8 +46,8 @@
       </div>
       <div class="file-status">
         <span id="saveStatus"><span class="indicator saved"></span> Guardado</span>
-        <button id="btnSaveApp" class="btn btn-success btn-sm" style="display: none;" onclick="saveToFirestore()">ðŸ’¾ Guardar</button>
-        <button class="btn btn-outline btn-sm" id="btnThemeToggle" onclick="toggleTheme()">ðŸŽ¨ Tema</button>
+        <button id="btnSaveApp" class="btn btn-success btn-sm" style="display: none;" onclick="saveToFirestore()">­ƒÆ¥ Guardar</button>
+        <button class="btn btn-outline btn-sm" id="btnThemeToggle" onclick="toggleTheme()">­ƒÄ¿ Tema</button>
         <div id="userInfo" class="user-info" style="display: none;">
           <img id="userAvatar" class="user-avatar" src="" alt="avatar">
           <span id="userName" class="user-name"></span>
@@ -65,12 +65,12 @@
       <button class="tab-btn tab-desktop-only" data-target="view-deudas"><span class="material-icons-round">handshake</span><span class="tab-text">Deudas</span></button>
       <button class="tab-btn tab-desktop-only" data-target="view-recurrentes"><span class="material-icons-round">autorenew</span><span class="tab-text">Recurrentes</span></button>
 
-      <button class="tab-btn tab-mobile-only" id="btnMoreMenuToggle" onclick="toggleMoreMenu()"><span class="material-icons-round">menu</span><span class="tab-text">MÃ¡s</span></button>
+      <button class="tab-btn tab-mobile-only" id="btnMoreMenuToggle" onclick="toggleMoreMenu()"><span class="material-icons-round">menu</span><span class="tab-text">M├ís</span></button>
     </nav>
 
     <div id="mobileMoreMenu" class="more-menu glass" style="display:none;">
       <button class="tab-btn" data-target="view-presupuestos" onclick="toggleMoreMenu()"><span class="material-icons-round">track_changes</span><span class="tab-text">Metas</span></button>
-      <button class="tab-btn" data-target="view-stats-ano" onclick="toggleMoreMenu()"><span class="material-icons-round">insert_chart_outlined</span><span class="tab-text">EstadÃ­sticas Anuales</span></button>
+      <button class="tab-btn" data-target="view-stats-ano" onclick="toggleMoreMenu()"><span class="material-icons-round">insert_chart_outlined</span><span class="tab-text">Estad├¡sticas Anuales</span></button>
       <button class="tab-btn" data-target="view-deudas" onclick="toggleMoreMenu()"><span class="material-icons-round">handshake</span><span class="tab-text">Deudas</span></button>
       <button class="tab-btn" data-target="view-recurrentes" onclick="toggleMoreMenu()"><span class="material-icons-round">autorenew</span><span class="tab-text">Recurrentes</span></button>
     </div>
@@ -86,7 +86,7 @@
             </button>
           </div>
           <div id="heroSaldosContainer" class="hero-saldos-grid">
-            <!-- Renderizado dinÃ¡micamente -->
+            <!-- Renderizado din├ímicamente -->
           </div>
         </div>
         <div class="hero-decoration"></div>
@@ -115,14 +115,14 @@
         
         <div class="card card-success">
           <div class="card-title" style="justify-content: space-between; width: 100%;">
-            <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">trending_up</span> InversiÃ³n</div>
+            <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">trending_up</span> Inversi├│n</div>
             <button onclick="togglePrivacy('Inver')" style="background:transparent; border:none; cursor:pointer;" title="Ocultar/Mostrar"><span class="material-icons-round text-muted" id="iconPrivacyInver" style="font-size: 1.3rem;">visibility</span></button>
           </div>
           <div class="card-value text-success privacy-value" id="sumInversion" data-raw="0">$0</div>
         </div>
 
-        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">credit_card</span> Gasto CrÃ©dito</div><div class="card-value" id="sumCredito">$0</div></div>
-        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">account_balance</span> Gasto DÃ©bito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
+        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">credit_card</span> Gasto Cr├®dito</div><div class="card-value" id="sumCredito">$0</div></div>
+        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">account_balance</span> Gasto D├®bito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
       </div>
 
       <div id="budgetProgressContainer" style="display: none; margin-bottom: 2.5rem;">
@@ -130,12 +130,12 @@
           <h3>Progreso de Metas (Mes Actual)</h3>
         </div>
         <div class="budget-grid" id="budgetProgressList" style="display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));">
-          <!-- Renderizado dinÃ¡micamente -->
+          <!-- Renderizado din├ímicamente -->
         </div>
       </div>
 
       <div class="section-title">
-        <h3>Ãšltimas Transacciones (Mes Actual)</h3>
+        <h3>├Ültimas Transacciones (Mes Actual)</h3>
       </div>
       <div class="table-container">
         <table>
@@ -143,7 +143,7 @@
             <tr>
               <th>Fecha</th>
               <th>Tipo</th>
-              <th>DescripciÃ³n</th>
+              <th>Descripci├│n</th>
               <th>Detalles</th>
               <th>Monto</th>
             </tr>
@@ -160,9 +160,9 @@
       <div class="section-title">
         <h2>Transacciones</h2>
         <div>
-          <button class="btn btn-success" id="btnAddIngreso">âž• Ingreso</button>
-          <button class="btn btn-danger" id="btnAddGasto">âž– Gasto</button>
-          <button class="btn btn-outline" id="btnAddIngresoFijo">ðŸ”„ Ingreso Fijo (Sueldo)</button>
+          <button class="btn btn-success" id="btnAddIngreso">Ô×ò Ingreso</button>
+          <button class="btn btn-danger" id="btnAddGasto">Ô×û Gasto</button>
+          <button class="btn btn-outline" id="btnAddIngresoFijo">­ƒöä Ingreso Fijo (Sueldo)</button>
         </div>
       </div>
 
@@ -175,25 +175,25 @@
           <label>Fondo</label>
           <select id="filterRegFondo" class="form-control">
             <option value="">Todos</option>
-            <!-- Se llena dinÃ¡micamente desde JS -->
+            <!-- Se llena din├ímicamente desde JS -->
           </select>
         </div>
         <div class="form-group">
-          <label>CategorÃ­a</label>
+          <label>Categor├¡a</label>
           <select id="filterRegCat" class="form-control">
             <option value="">Todas</option>
-            <!-- Se llena dinÃ¡micamente desde JS -->
+            <!-- Se llena din├ímicamente desde JS -->
           </select>
         </div>
         <div class="form-group">
           <label>Buscar</label>
-          <input type="text" id="searchReg" class="form-control" placeholder="Buscar descripciÃ³n o lugar...">
+          <input type="text" id="searchReg" class="form-control" placeholder="Buscar descripci├│n o lugar...">
         </div>
         <div class="form-group" style="margin-left: auto;">
           <label>Exportar Registros</label>
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button class="btn btn-success btn-sm" onclick="exportCartolaMensualFromReg()">ðŸ“¥ Mensual</button>
-            <button class="btn btn-outline btn-sm" onclick="exportCartolaAnualFromReg()">ðŸ“¥ Anual</button>
+            <button class="btn btn-success btn-sm" onclick="exportCartolaMensualFromReg()">­ƒôÑ Mensual</button>
+            <button class="btn btn-outline btn-sm" onclick="exportCartolaAnualFromReg()">­ƒôÑ Anual</button>
           </div>
         </div>
       </div>
@@ -204,7 +204,7 @@
             <tr>
               <th>Fecha</th>
               <th>Tipo</th>
-              <th>DescripciÃ³n/Lugar</th>
+              <th>Descripci├│n/Lugar</th>
               <th>Fondo/Categ</th>
               <th>Monto</th>
               <th>Acciones</th>
@@ -217,7 +217,7 @@
       </div>
     </main>
 
-    <!-- VISTA: ESTADÃSTICAS MENSUALES -->
+    <!-- VISTA: ESTAD├ìSTICAS MENSUALES -->
     <main id="view-stats-mes" class="view">
       <div class="filters-bar">
         <div class="form-group">
@@ -227,7 +227,7 @@
         <div class="form-group" style="margin-left: auto;">
           <label>Cartola Mensual (Excel)</label>
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button class="btn btn-success" onclick="exportCartolaMensual()">ðŸ“¥ Descargar Mensual</button>
+            <button class="btn btn-success" onclick="exportCartolaMensual()">­ƒôÑ Descargar Mensual</button>
           </div>
         </div>
       </div>
@@ -255,21 +255,21 @@
         </div>
       </div>
 
-      <!-- GrÃ¡ficos por Fondo -->
+      <!-- Gr├íficos por Fondo -->
       <div id="chartsPerFondoContainer"></div>
     </main>
 
-    <!-- VISTA: ESTADÃSTICAS ANUALES -->
+    <!-- VISTA: ESTAD├ìSTICAS ANUALES -->
     <main id="view-stats-ano" class="view">
       <div class="filters-bar">
         <div class="form-group">
-          <label>AÃ±o</label>
+          <label>A├▒o</label>
           <input type="number" id="filterStatsYear" class="form-control" value="2026" min="2000" max="2100">
         </div>
         <div class="form-group" style="margin-left: auto;">
           <label>Cartola Anual (Excel)</label>
           <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button class="btn btn-success" onclick="exportCartolaAnual()">ðŸ“¥ Descargar Anual</button>
+            <button class="btn btn-success" onclick="exportCartolaAnual()">­ƒôÑ Descargar Anual</button>
           </div>
         </div>
       </div>
@@ -288,11 +288,11 @@
         </div>
       </div>
       <div class="section-title">
-        <h3>Top 5 CategorÃ­as de Gasto</h3>
+        <h3>Top 5 Categor├¡as de Gasto</h3>
       </div>
       <div class="table-container">
         <table>
-          <thead><tr><th>CategorÃ­a</th><th>Monto Total</th></tr></thead>
+          <thead><tr><th>Categor├¡a</th><th>Monto Total</th></tr></thead>
           <tbody id="topCatTableBody"></tbody>
         </table>
       </div>
@@ -302,7 +302,7 @@
     <main id="view-deudas" class="view">
       <div class="section-title">
         <h2>Deudas Informales</h2>
-        <button class="btn btn-primary" id="btnAddDeuda">âž• Agregar Deuda</button>
+        <button class="btn btn-primary" id="btnAddDeuda">Ô×ò Agregar Deuda</button>
       </div>
       <div class="summary-grid">
         <div class="card"><div class="card-title">Me Deben (Total)</div><div class="card-value text-success" id="sumMeDeben">$0</div></div>
@@ -314,7 +314,7 @@
             <tr>
               <th>Fecha</th>
               <th>Persona</th>
-              <th>DescripciÃ³n</th>
+              <th>Descripci├│n</th>
               <th>Tipo</th>
               <th>Fondo</th>
               <th>Monto</th>
@@ -332,18 +332,18 @@
       <div class="section-title">
         <h2>Plantillas Recurrentes</h2>
         <div>
-          <button class="btn btn-primary" id="btnApplyRecurrentes">âš¡ Aplicar al mes actual</button>
-          <button class="btn btn-outline" id="btnAddRecurrente">âž• Nueva Plantilla</button>
+          <button class="btn btn-primary" id="btnApplyRecurrentes">ÔÜí Aplicar al mes actual</button>
+          <button class="btn btn-outline" id="btnAddRecurrente">Ô×ò Nueva Plantilla</button>
         </div>
       </div>
-      <p class="text-muted mb-4">Define gastos o ingresos fijos (como la mesada o suscripciones). AplÃ­calos manualmente cada inicio de mes.</p>
+      <p class="text-muted mb-4">Define gastos o ingresos fijos (como la mesada o suscripciones). Apl├¡calos manualmente cada inicio de mes.</p>
       <div class="table-container">
         <table>
           <thead>
             <tr>
               <th>Activo</th>
               <th>Tipo</th>
-              <th>DescripciÃ³n/Lugar</th>
+              <th>Descripci├│n/Lugar</th>
               <th>Detalles</th>
               <th>Monto</th>
               <th>Acciones</th>
@@ -358,14 +358,14 @@
     <main id="view-presupuestos" class="view">
       <div class="section-title">
         <h2>Metas Mensuales</h2>
-        <button class="btn btn-primary" id="btnAddMeta">âž• Nueva Meta</button>
+        <button class="btn btn-primary" id="btnAddMeta">Ô×ò Nueva Meta</button>
       </div>
-      <p class="text-muted mb-4" style="margin-bottom: 1.5rem;">Define tus lÃ­mites de gasto (metas) mensuales. Tu progreso del mes actual se calcularÃ¡ automÃ¡ticamente.</p>
+      <p class="text-muted mb-4" style="margin-bottom: 1.5rem;">Define tus l├¡mites de gasto (metas) mensuales. Tu progreso del mes actual se calcular├í autom├íticamente.</p>
       
       <div id="budgetProgressCardsContainer" style="display: none; margin-bottom: 2rem;">
         <h3>Progreso del Mes Actual</h3>
         <div class="budget-grid" id="budgetProgressCardsList" style="display: grid; gap: 1.5rem; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); margin-top: 1rem;">
-          <!-- Renderizado dinÃ¡micamente -->
+          <!-- Renderizado din├ímicamente -->
         </div>
       </div>
 
@@ -375,18 +375,18 @@
       <div id="metasListContainer" style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
         <!-- Renderizado por JS -->
       </div>
-      <p id="noMetasMsg" class="text-muted" style="text-align: center; padding: 2rem; display: none;">No tienes metas configuradas. Â¡Agrega una para empezar!</p>
+      <p id="noMetasMsg" class="text-muted" style="text-align: center; padding: 2rem; display: none;">No tienes metas configuradas. ┬íAgrega una para empezar!</p>
     </main>
 
   </div>
 
   <!-- MODALES PARA FORMULARIOS -->
   
-  <!-- Modal TransacciÃ³n (Gasto/Ingreso/Ah/Inv/Cred) -->
+  <!-- Modal Transacci├│n (Gasto/Ingreso/Ah/Inv/Cred) -->
   <div id="modalTx" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3 id="modalTxTitle">Nueva TransacciÃ³n</h3>
+        <h3 id="modalTxTitle">Nueva Transacci├│n</h3>
         <button class="close-modal" data-close="modalTx">&times;</button>
       </div>
       <form id="formTx">
@@ -408,7 +408,7 @@
             <label>Moneda</label>
             <select id="txMoneda" class="form-control" onchange="toggleTasaCambio('tx')">
               <option value="CLP">CLP (Pesos)</option>
-              <option value="USD">USD (DÃ³lares)</option>
+              <option value="USD">USD (D├│lares)</option>
               <option value="EUR">EUR (Euros)</option>
             </select>
           </div>
@@ -419,29 +419,29 @@
         </div>
         
         <div class="form-group">
-          <label>DescripciÃ³n</label>
+          <label>Descripci├│n</label>
           <input type="text" id="txDesc" class="form-control" required>
         </div>
 
-        <!-- Campos de Gasto EspecÃ­ficos -->
+        <!-- Campos de Gasto Espec├¡ficos -->
         <div id="txGroupGasto" style="display:none;">
           <div class="form-row">
             <div class="form-group">
-              <label>Lugar (DÃ³nde)</label>
+              <label>Lugar (D├│nde)</label>
               <input type="text" id="txDonde" class="form-control">
             </div>
             <div class="form-group">
-              <label>CategorÃ­a</label>
+              <label>Categor├¡a</label>
               <select id="txCat" class="form-control">
                 <option value="">Seleccione...</option>
-                <!-- Se llena dinÃ¡micamente desde JS -->
+                <!-- Se llena din├ímicamente desde JS -->
               </select>
             </div>
           </div>
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" id="txCredito">
-              Â¿Pagado con Tarjeta de CrÃ©dito?
+              ┬┐Pagado con Tarjeta de Cr├®dito?
             </label>
           </div>
         </div>
@@ -453,23 +453,23 @@
           </select>
         </div>
 
-        <!-- DistribuciÃ³n automÃ¡tica (solo ingresos nuevos) -->
+        <!-- Distribuci├│n autom├ítica (solo ingresos nuevos) -->
         <div id="txGroupDistribuir" style="display:none;">
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" id="txDistribuir" onchange="toggleDistribuirPanel()">
-              Distribuir entre fondos segÃºn porcentajes
+              Distribuir entre fondos seg├║n porcentajes
             </label>
           </div>
           <!-- Panel expandible con inputs de % por fondo -->
           <div id="txDistribuirPanel" style="display:none; background: rgba(59,130,246,0.05); border: 1px solid rgba(59,130,246,0.2); border-radius: 10px; padding: 1rem; margin-top: 0.5rem;">
-            <p class="text-muted" style="font-size:0.85rem; margin-bottom:0.8rem;">Ingresa el porcentaje de este ingreso que irÃ¡ a cada fondo:</p>
+            <p class="text-muted" style="font-size:0.85rem; margin-bottom:0.8rem;">Ingresa el porcentaje de este ingreso que ir├í a cada fondo:</p>
             <div id="txDistribuirInputs" style="display:flex; flex-direction:column; gap:0.6rem;"></div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.8rem; padding-top:0.8rem; border-top:1px solid rgba(59,130,246,0.15);">
               <span style="font-weight:600; font-size:0.9rem;">Total:</span>
               <span id="txDistribuirTotal" style="font-weight:700; font-size:1rem; color:var(--color-danger)">0%</span>
             </div>
-            <p id="txDistribuirError" style="display:none; color:var(--color-danger); font-size:0.82rem; margin-top:0.4rem;">âš ï¸ La suma debe ser exactamente 100%</p>
+            <p id="txDistribuirError" style="display:none; color:var(--color-danger); font-size:0.82rem; margin-top:0.4rem;">ÔÜá´©Å La suma debe ser exactamente 100%</p>
           </div>
         </div>
 
@@ -493,7 +493,7 @@
           <div class="form-group">
             <label>Tipo</label>
             <select id="deudaTipo" class="form-control">
-              <option value="me_deben">Me Deben (PrestÃ© de mi plato)</option>
+              <option value="me_deben">Me Deben (Prest├® de mi plato)</option>
               <option value="les_debo">Les Debo (Me prestaron plata)</option>
             </select>
           </div>
@@ -512,14 +512,14 @@
             <input type="number" id="deudaMonto" class="form-control" min="0" required>
           </div>
           <div class="form-group">
-            <label>DescripciÃ³n</label>
+            <label>Descripci├│n</label>
             <input type="text" id="deudaDesc" class="form-control">
           </div>
         </div>
         <div class="form-group">
           <label>Fondo asociado</label>
           <select id="deudaFondo" class="form-control">
-            <!-- Se llena dinÃ¡micamente desde JS -->
+            <!-- Se llena din├ímicamente desde JS -->
           </select>
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Deuda</button>
@@ -544,7 +544,7 @@
           </select>
         </div>
         <div class="form-group">
-          <label>DescripciÃ³n (QuÃ©)</label>
+          <label>Descripci├│n (Qu├®)</label>
           <input type="text" id="recDesc" class="form-control" required>
         </div>
         <div class="form-row">
@@ -553,7 +553,7 @@
             <input type="number" id="recMonto" class="form-control" min="0" step="0.01" required>
           </div>
           <div class="form-group" id="recGroupLugar">
-            <label>Lugar (DÃ³nde)</label>
+            <label>Lugar (D├│nde)</label>
             <input type="text" id="recDonde" class="form-control">
           </div>
         </div>
@@ -562,7 +562,7 @@
             <label>Moneda</label>
             <select id="recMoneda" class="form-control" onchange="toggleTasaCambio('rec')">
               <option value="CLP">CLP (Pesos)</option>
-              <option value="USD">USD (DÃ³lares)</option>
+              <option value="USD">USD (D├│lares)</option>
               <option value="EUR">EUR (Euros)</option>
             </select>
           </div>
@@ -573,29 +573,29 @@
         </div>
         <div class="form-row">
           <div class="form-group" id="recGroupCat">
-            <label>CategorÃ­a</label>
+            <label>Categor├¡a</label>
              <select id="recCat" class="form-control">
                 <option value="">Seleccione...</option>
-                <!-- Se llena dinÃ¡micamente desde JS -->
+                <!-- Se llena din├ímicamente desde JS -->
               </select>
           </div>
           <div class="form-group">
             <label>Fondo</label>
             <select id="recFondo" class="form-control">
-              <!-- Se llena dinÃ¡micamente desde JS -->
+              <!-- Se llena din├ímicamente desde JS -->
             </select>
           </div>
         </div>
         <div class="form-group" id="recGroupCredito">
            <label class="checkbox-label">
               <input type="checkbox" id="recCredito">
-              Â¿Pagado con Tarjeta de CrÃ©dito?
+              ┬┐Pagado con Tarjeta de Cr├®dito?
             </label>
         </div>
         <div class="form-group">
           <label class="checkbox-label">
              <input type="checkbox" id="recActivo" checked>
-             Plantilla Activa (se aplicarÃ¡ este inicio de mes)
+             Plantilla Activa (se aplicar├í este inicio de mes)
            </label>
         </div>
         <button type="submit" class="btn btn-primary" style="width: 100%;">Guardar Plantilla</button>
@@ -611,7 +611,7 @@
         <button class="close-modal" onclick="document.getElementById('modalFondos').classList.remove('active')">&times;</button>
       </div>
       
-      <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;">Configura los nombres de tus cuentas o fondos personales. Al renombrar un fondo, los registros anteriores se actualizarÃ¡n automÃ¡ticamente.</p>
+      <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;">Configura los nombres de tus cuentas o fondos personales. Al renombrar un fondo, los registros anteriores se actualizar├ín autom├íticamente.</p>
       
       <div id="fondosListContainer" style="display:flex; flex-direction:column; gap:0.8rem; margin-bottom: 2rem;">
         <!-- Se insertan por JS -->
@@ -619,7 +619,7 @@
       
       <div class="form-group" style="display:flex; gap:0.5rem; align-items:end; margin-top: 2rem; border-top: 1px solid var(--color-border); padding-top: 1.5rem;">
         <div style="flex:1;">
-          <label>AÃ±adir Nuevo Fondo</label>
+          <label>A├▒adir Nuevo Fondo</label>
           <input type="text" id="nuevoFondoName" class="form-control" placeholder="Ej: Cuenta RUT, Billetera">
         </div>
         <button class="btn btn-primary" onclick="addFondoConfig()"><span class="material-icons-round">add</span></button>
@@ -627,7 +627,7 @@
 
       <div style="border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1rem;">
         <button class="btn btn-outline" style="width:100%;" onclick="openDistribucionModal()">
-          <span class="material-icons-round">pie_chart</span> DistribuciÃ³n de Ingresos
+          <span class="material-icons-round">pie_chart</span> Distribuci├│n de Ingresos
         </button>
       </div>
     </div>
@@ -643,46 +643,46 @@
       <form id="formMeta">
         <input type="hidden" id="metaId">
         <div class="form-group">
-          <label>CategorÃ­a</label>
+          <label>Categor├¡a</label>
           <select id="metaCategoria" class="form-control" required>
             <option value="">Seleccione...</option>
-            <!-- Se llena dinÃ¡micamente desde JS -->
+            <!-- Se llena din├ímicamente desde JS -->
           </select>
         </div>
         <div class="form-group">
           <label>Fondo (opcional)</label>
           <select id="metaFondo" class="form-control">
             <option value="">Todos los fondos</option>
-            <!-- Se llena dinÃ¡micamente desde JS -->
+            <!-- Se llena din├ímicamente desde JS -->
           </select>
         </div>
         <div class="form-group">
-          <label>LÃ­mite Mensual (CLP)</label>
+          <label>L├¡mite Mensual (CLP)</label>
           <input type="number" id="metaMonto" class="form-control" min="1" step="1" required placeholder="Ej: 50000">
         </div>
-        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">ðŸ’¾ Guardar Meta</button>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">­ƒÆ¥ Guardar Meta</button>
       </form>
     </div>
   </div>
 
-  <!-- Modal DistribuciÃ³n de Ingresos -->
+  <!-- Modal Distribuci├│n de Ingresos -->
   <div id="modalDistribucion" class="modal">
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
-        <h3><span class="material-icons-round" style="vertical-align:middle;">pie_chart</span> DistribuciÃ³n de Ingresos</h3>
+        <h3><span class="material-icons-round" style="vertical-align:middle;">pie_chart</span> Distribuci├│n de Ingresos</h3>
         <button class="close-modal" data-close="modalDistribucion">&times;</button>
       </div>
       <p class="text-muted" style="margin-bottom: 1.5rem; font-size: 0.9rem;">
-        Define quÃ© porcentaje de cada ingreso va a cada fondo. Al registrar un ingreso, podrÃ¡s distribuirlo automÃ¡ticamente segÃºn esta regla.
+        Define qu├® porcentaje de cada ingreso va a cada fondo. Al registrar un ingreso, podr├ís distribuirlo autom├íticamente seg├║n esta regla.
       </p>
       <div id="distribucionInputsContainer" style="display:flex; flex-direction:column; gap:0.8rem; margin-bottom: 1.5rem;">
-        <!-- Se genera dinÃ¡micamente por JS -->
+        <!-- Se genera din├ímicamente por JS -->
       </div>
       <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.8rem 1rem; border-radius: 8px; background: rgba(0,0,0,0.04); margin-bottom: 1.5rem;">
         <span style="font-weight:600;">Total:</span>
         <span id="distribucionTotal" style="font-weight:700; font-size:1.1rem;">0%</span>
       </div>
-      <p id="distribucionError" class="text-danger" style="display:none; margin-bottom:1rem; font-size:0.9rem;">âš ï¸ La suma debe ser exactamente 100%</p>
+      <p id="distribucionError" class="text-danger" style="display:none; margin-bottom:1rem; font-size:0.9rem;">ÔÜá´©Å La suma debe ser exactamente 100%</p>
       <button class="btn btn-primary" style="width:100%;" onclick="saveDistribucionReglas()">
         <span class="material-icons-round">save</span> Guardar Regla
       </button>
@@ -697,13 +697,13 @@
 
   <!-- FAB Popup Menu -->
   <div class="fab-menu" id="fabMenu">
-    <button class="fab-menu-item fab-ingreso" id="fabIngreso">âž• Ingreso</button>
-    <button class="fab-menu-item fab-gasto" id="fabGasto">âž– Gasto</button>
-    <button class="fab-menu-item fab-fijo" id="fabFijo">ðŸ”„ Ingreso Fijo</button>
+    <button class="fab-menu-item fab-ingreso" id="fabIngreso">Ô×ò Ingreso</button>
+    <button class="fab-menu-item fab-gasto" id="fabGasto">Ô×û Gasto</button>
+    <button class="fab-menu-item fab-fijo" id="fabFijo">­ƒöä Ingreso Fijo</button>
   </div>
 
-  <!-- BotÃ³n Flotante Global (FAB) -->
-  <button class="fab-btn" id="fabBtn" title="AÃ±adir TransacciÃ³n" style="display: none;">
+  <!-- Bot├│n Flotante Global (FAB) -->
+  <button class="fab-btn" id="fabBtn" title="A├▒adir Transacci├│n" style="display: none;">
     <span class="material-icons-round">add</span>
   </button>
 
