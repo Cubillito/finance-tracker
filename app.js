@@ -490,6 +490,34 @@ function initNav() {
 // Formato moneda CLP
 const formatMoney = (val) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(val);
 
+// === CATEGORÍAS CENTRALIZADAS ===
+const CATEGORIAS = [
+  { value: 'comida',       label: '🍔 Comida' },
+  { value: 'transporte',   label: '⛽ Transporte' },
+  { value: 'salud',        label: '💊 Salud' },
+  { value: 'entretención', label: '🎬 Entretención' },
+  { value: 'ropa',         label: '👕 Ropa' },
+  { value: 'hogar',        label: '🏠 Hogar' },
+  { value: 'educación',    label: '📚 Educación' },
+  { value: 'otro',         label: 'Otro' }
+];
+
+function populateCategoriasSelect(selectId, includePlaceholder = true) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const placeholder = includePlaceholder ? '<option value="">Seleccione...</option>' : '<option value="">Todas</option>';
+  sel.innerHTML = placeholder + CATEGORIAS.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
+}
+
+function populateFilterRegFondo() {
+  const sel = document.getElementById('filterRegFondo');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Todos</option>' +
+    (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('') +
+    '<option value="Ahorro">Ahorro</option>' +
+    '<option value="Inversion">Inversión</option>';
+}
+
 function initApp() {
   initNav();
   
@@ -502,11 +530,21 @@ function initApp() {
   document.getElementById('filterStatsMonth').value = currentMonthStr;
   document.getElementById('filterStatsYear').value = d.getFullYear();
 
+  // Poblar selects de categorías dinámicamente
+  populateCategoriasSelect('txCat', true);
+  populateCategoriasSelect('recCat', true);
+  populateCategoriasSelect('metaCategoria', true);
+  populateCategoriasSelect('filterRegCat', false);
+
+  // Poblar filtro de fondo dinámicamente
+  populateFilterRegFondo();
+
   // Listeners Filtros
   document.getElementById('filterResumenMonth').addEventListener('change', renderResumen);
   document.getElementById('filterRegMonth').addEventListener('change', renderRegistro);
   document.getElementById('filterRegFondo').addEventListener('change', renderRegistro);
   document.getElementById('filterRegCat').addEventListener('change', renderRegistro);
+  document.getElementById('searchReg').addEventListener('input', renderRegistro);
   document.getElementById('filterStatsMonth').addEventListener('change', renderStatsMensuales);
   document.getElementById('filterStatsYear').addEventListener('change', renderStatsAnuales);
 
@@ -655,13 +693,27 @@ window.deleteMeta = function(id) {
 }
 
 function refreshViews() {
+  // Siempre actualizar resumen y metas (sin gráficos)
   renderResumen();
-  renderRegistro();
-  renderStatsMensuales();
-  renderStatsAnuales();
-  renderDeudas();
-  renderRecurrentes();
   renderMetasList();
+
+  // Detectar vista activa
+  const activeView = document.querySelector('.view.active');
+  const activeId = activeView ? activeView.id : null;
+
+  if (activeId === 'view-registro') {
+    renderRegistro();
+  } else if (activeId === 'view-stats-mes') {
+    renderStatsMensuales();
+  } else if (activeId === 'view-stats-ano') {
+    renderStatsAnuales();
+  } else if (activeId === 'view-deudas') {
+    renderDeudas();
+  } else if (activeId === 'view-recurrentes') {
+    renderRecurrentes();
+  } else if (activeId === 'view-presupuestos') {
+    // renderMetasList ya fue llamado arriba
+  }
 }
 
 // Funciones Auxiliares de Consulta
@@ -823,6 +875,7 @@ function renderResumen() {
   allTx.sort((a,b) => new Date(b.fecha) - new Date(a.fecha)); // Orden desc
 
   // Limitar a ultimas 15
+  const totalTx = allTx.length;
   allTx.slice(0, 15).forEach(item => {
     let tr = document.createElement('tr');
     tr.innerHTML = `
@@ -834,18 +887,37 @@ function renderResumen() {
     `;
     table.appendChild(tr);
   });
+
+  // Mensaje si hay más de 15 transacciones
+  let resumenMsg = document.getElementById('resumenTxOverflowMsg');
+  if (!resumenMsg) {
+    resumenMsg = document.createElement('p');
+    resumenMsg.id = 'resumenTxOverflowMsg';
+    resumenMsg.className = 'text-muted';
+    resumenMsg.style.cssText = 'text-align:center; font-size:0.85rem; margin-top:0.8rem; padding: 0.5rem;';
+    table.closest('.table-container').after(resumenMsg);
+  }
+  if (totalTx > 15) {
+    resumenMsg.textContent = `Mostrando 15 de ${totalTx} transacciones. Ve a la pestaña Registrar para ver todas.`;
+    resumenMsg.style.display = 'block';
+  } else {
+    resumenMsg.style.display = 'none';
+  }
 }
 
 // === RENDER: REGISTRO GENERAL ===
 function getIconForCat(cat) {
-  const icons = { comida: '🍔', transporte: '⛽', salud: '💊', entretención: '🎬', ropa: '👕', hogar: '🏠', educación: '📚', otro: '❓' };
-  return icons[cat] || '❓';
+  const found = CATEGORIAS.find(c => c.value === cat);
+  if (found) return found.label.split(' ')[0]; // Devuelve solo el emoji
+  return '❓';
 }
 
 function renderRegistro() {
   const month = document.getElementById('filterRegMonth').value;
   const fFondo = document.getElementById('filterRegFondo').value;
   const fCat = document.getElementById('filterRegCat').value;
+  const searchEl = document.getElementById('searchReg');
+  const fSearch = searchEl ? searchEl.value.trim().toLowerCase() : '';
   
   if (!month) return;
 
@@ -874,6 +946,12 @@ function renderRegistro() {
     } else {
       allTx = allTx.filter(t => t.categoria === fCat);
     }
+  }
+  if (fSearch) {
+    allTx = allTx.filter(t =>
+      (t.descripcion && t.descripcion.toLowerCase().includes(fSearch)) ||
+      (t.donde && t.donde.toLowerCase().includes(fSearch))
+    );
   }
 
   allTx.sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
@@ -1336,11 +1414,13 @@ function setupRecurrentesModales() {
     document.getElementById('recGroupCat').style.display = isGasto ? 'block' : 'none';
     document.getElementById('recGroupCredito').style.display = isGasto ? 'block' : 'none';
     
-    // reset fondo options
+    // Poblar fondo dinámicamente desde window.userFondos
     const fSelect = document.getElementById('recFondo');
-    fSelect.innerHTML = isGasto 
-      ? `<option value="Personal">Personal</option><option value="U">U</option><option value="Ahorro">Ahorro</option>`
-      : `<option value="Personal">Personal</option><option value="U">U</option><option value="Ahorro">Ahorro</option><option value="Inversion">Inversión</option>`;
+    const userOps = (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('');
+    const extraOps = isGasto
+      ? '<option value="Ahorro">Ahorro</option>'
+      : '<option value="Ahorro">Ahorro</option><option value="Inversion">Inversión</option>';
+    fSelect.innerHTML = userOps + extraOps;
   }
 
   document.getElementById('formRecurrente').addEventListener('submit', async(e) => {

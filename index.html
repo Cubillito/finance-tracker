@@ -174,25 +174,19 @@
           <label>Fondo</label>
           <select id="filterRegFondo" class="form-control">
             <option value="">Todos</option>
-            <option value="Personal">Personal</option>
-            <option value="U">U</option>
-            <option value="Ahorro">Ahorro</option>
-            <option value="Inversion">Inversión</option>
+            <!-- Se llena dinámicamente desde JS -->
           </select>
         </div>
         <div class="form-group">
           <label>Categoría</label>
           <select id="filterRegCat" class="form-control">
             <option value="">Todas</option>
-            <option value="comida">🍔 Comida</option>
-            <option value="transporte">⛽ Transporte</option>
-            <option value="salud">💊 Salud</option>
-            <option value="entretención">🎬 Entretención</option>
-            <option value="ropa">👕 Ropa</option>
-            <option value="hogar">🏠 Hogar</option>
-            <option value="educación">📚 Educación</option>
-            <option value="otro">Otro</option>
+            <!-- Se llena dinámicamente desde JS -->
           </select>
+        </div>
+        <div class="form-group">
+          <label>Buscar</label>
+          <input type="text" id="searchReg" class="form-control" placeholder="Buscar descripción o lugar...">
         </div>
         <div class="form-group" style="margin-left: auto;">
           <label>Exportar Registros</label>
@@ -439,14 +433,7 @@
               <label>Categoría</label>
               <select id="txCat" class="form-control">
                 <option value="">Seleccione...</option>
-                <option value="comida">🍔 Comida</option>
-                <option value="transporte">⛽ Transporte</option>
-                <option value="salud">💊 Salud</option>
-                <option value="entretención">🎬 Entretención</option>
-                <option value="ropa">👕 Ropa</option>
-                <option value="hogar">🏠 Hogar</option>
-                <option value="educación">📚 Educación</option>
-                <option value="otro">Otro</option>
+                <!-- Se llena dinámicamente desde JS -->
               </select>
             </div>
           </div>
@@ -588,22 +575,13 @@
             <label>Categoría</label>
              <select id="recCat" class="form-control">
                 <option value="">Seleccione...</option>
-                <option value="comida">🍔 Comida</option>
-                <option value="transporte">⛽ Transporte</option>
-                <option value="salud">💊 Salud</option>
-                <option value="entretención">🎬 Entretención</option>
-                <option value="ropa">👕 Ropa</option>
-                <option value="hogar">🏠 Hogar</option>
-                <option value="educación">📚 Educación</option>
-                <option value="otro">Otro</option>
+                <!-- Se llena dinámicamente desde JS -->
               </select>
           </div>
           <div class="form-group">
             <label>Fondo</label>
             <select id="recFondo" class="form-control">
-              <option value="Personal">Personal</option>
-              <option value="U">U</option>
-              <option value="Ahorro">Ahorro</option>
+              <!-- Se llena dinámicamente desde JS -->
             </select>
           </div>
         </div>
@@ -667,14 +645,7 @@
           <label>Categoría</label>
           <select id="metaCategoria" class="form-control" required>
             <option value="">Seleccione...</option>
-            <option value="comida">🍔 Comida</option>
-            <option value="transporte">⛽ Transporte</option>
-            <option value="salud">💊 Salud</option>
-            <option value="entretención">🎬 Entretención</option>
-            <option value="ropa">👕 Ropa</option>
-            <option value="hogar">🏠 Hogar</option>
-            <option value="educación">📚 Educación</option>
-            <option value="otro">Otro</option>
+            <!-- Se llena dinámicamente desde JS -->
           </select>
         </div>
         <div class="form-group">
@@ -736,6 +707,6 @@
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>
