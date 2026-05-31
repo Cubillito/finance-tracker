@@ -1895,179 +1895,254 @@ function applyTheme(theme) {
   }
 }
 
-// === EXPORTAR A EXCEL (CARTOLA MENSUAL) ===
-window.exportCartolaMensual = function() {
-  const month = document.getElementById('filterStatsMonth').value;
-  if (!month) { showToast('Selecciona un mes a analizar primero', 'warning'); return; }
+// === EXPORTAR A EXCEL — VERSIÓN MEJORADA ===
 
-  if (typeof XLSX === 'undefined') {
-    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
-    return;
-  }
-  
-  const tx = getTransactionsByMonth(month);
-  
-  // Consolidar todas las transacciones en una sola lista para simular cartola
-  let allTx = [
-    ...tx.gastos.map(g => ({...g, _type: 'Gasto' })),
-    ...tx.ingresos.map(i => ({...i, _type: 'Ingreso' })),
-    ...tx.ahorros.map(a => ({...a, _type: 'Ahorro' })),
-    ...tx.inversiones.map(inv => ({...inv, _type: 'Inversión' })),
-    ...tx.creditos.map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
-  ];
-
-  // Ordenar cronológicamente (ascendente)
-  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
-
-  generateExcelFromTransactions(allTx, `Cartola_Mensual_${month}`);
+function _xlC(v, s) {
+  var cell = {};
+  if (v === null || v === undefined || v === '') { cell.t = 's'; cell.v = ''; }
+  else if (typeof v === 'number') { cell.t = 'n'; cell.v = v; }
+  else { cell.t = 's'; cell.v = String(v); }
+  if (s) cell.s = s;
+  return cell;
+}
+function _xlN(v, s, fmt) {
+  var cell = { t: 'n', v: Number(v) || 0 };
+  var st = s ? Object.assign({}, s) : {};
+  if (fmt) st.numFmt = fmt;
+  if (Object.keys(st).length) cell.s = st;
+  return cell;
+}
+function _xlSheet(rows) {
+  var ws = {}; var maxC = 0;
+  rows.forEach(function(row, r) {
+    if (row.length > maxC) maxC = row.length;
+    row.forEach(function(cell, c) {
+      ws[XLSX.utils.encode_cell({ r: r, c: c })] = cell || { t: 's', v: '' };
+    });
+  });
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length - 1, c: maxC - 1 } });
+  return ws;
+}
+function _colWidths(dataRows, headers) {
+  var w = headers.map(function(h) { return String(h).length; });
+  dataRows.forEach(function(row) {
+    row.forEach(function(cell, c) {
+      if (c < w.length) { var l = cell && cell.v != null ? String(cell.v).length : 0; if (l > w[c]) w[c] = l; }
+    });
+  });
+  return w.map(function(x) { return { wch: Math.min(x + 2, 55) }; });
+}
+function _buildAllTx(tx) {
+  return [].concat(
+    tx.gastos.map(function(g) { return Object.assign({}, g, { _type: 'Gasto' }); }),
+    tx.ingresos.map(function(i) { return Object.assign({}, i, { _type: 'Ingreso' }); }),
+    tx.ahorros.map(function(a) { return Object.assign({}, a, { _type: 'Ahorro' }); }),
+    tx.inversiones.map(function(i) { return Object.assign({}, i, { _type: 'Inversión' }); }),
+    tx.creditos.map(function(c) { return Object.assign({}, c, { _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }); })
+  );
+}
+function _buildAllTxYear(year) {
+  var fn = function(t) { return t.fecha && t.fecha.startsWith(year); };
+  var fc = function(t) { var f = t.fecha_pago || t.fecha; return f && f.startsWith(year); };
+  return [].concat(
+    db.gastos.filter(fn).map(function(g) { return Object.assign({}, g, { _type: 'Gasto' }); }),
+    db.ingresos.filter(fn).map(function(i) { return Object.assign({}, i, { _type: 'Ingreso' }); }),
+    db.ahorros.filter(fn).map(function(a) { return Object.assign({}, a, { _type: 'Ahorro' }); }),
+    db.inversiones.filter(fn).map(function(i) { return Object.assign({}, i, { _type: 'Inversión' }); }),
+    db.creditos.filter(fc).map(function(c) { return Object.assign({}, c, { _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }); })
+  );
 }
 
-// === EXPORTAR A EXCEL (CARTOLA ANUAL) ===
-window.exportCartolaAnual = function() {
-  const year = document.getElementById('filterStatsYear').value;
-  if (!year) { showToast('Ingresa un año primero', 'warning'); return; }
+var _S = {
+  hdr:  { font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 }, fill: { fgColor: { rgb: '1D9E75' }, patternType: 'solid' }, alignment: { horizontal: 'center', wrapText: true } },
+  grn:  { font: { color: { rgb: '1D7A5A' } } },
+  red:  { font: { color: { rgb: 'C0392B' } } },
+  grnA: { font: { color: { rgb: '1D7A5A' } }, fill: { fgColor: { rgb: 'F7F7F7' }, patternType: 'solid' } },
+  redA: { font: { color: { rgb: 'C0392B' } }, fill: { fgColor: { rgb: 'F7F7F7' }, patternType: 'solid' } },
+  tot:  { font: { bold: true }, fill: { fgColor: { rgb: 'EEEEEE' }, patternType: 'solid' } },
+  sec:  { font: { bold: true, color: { rgb: '1D5E3A' }, sz: 12 }, fill: { fgColor: { rgb: 'E8F5F0' }, patternType: 'solid' } },
+  th:   { font: { bold: true }, fill: { fgColor: { rgb: 'EEEEEE' }, patternType: 'solid' } },
+  bold: { font: { bold: true } },
+  num:  '#,##0',
+  pct:  '0.0%'
+};
 
-  if (typeof XLSX === 'undefined') {
-    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
-    return;
-  }
-
-  // Filtrar del DB completo por el año
-  const filterFn = (t) => t.fecha && t.fecha.startsWith(year);
-  const filterCredito = (t) => {
-    const f = t.fecha_pago || t.fecha;
-    return f && f.startsWith(year);
-  };
-
-  let allTx = [
-    ...db.gastos.filter(filterFn).map(g => ({...g, _type: 'Gasto' })),
-    ...db.ingresos.filter(filterFn).map(i => ({...i, _type: 'Ingreso' })),
-    ...db.ahorros.filter(filterFn).map(a => ({...a, _type: 'Ahorro' })),
-    ...db.inversiones.filter(filterFn).map(inv => ({...inv, _type: 'Inversión' })),
-    ...db.creditos.filter(filterCredito).map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
+function _sheetDetalle(allTx) {
+  var H = ['Fecha','Tipo','Fondo','Categoría','Lugar/Origen','Descripción','Monto (CLP)','Moneda Original','Monto Original','Medio de Pago'];
+  var hRow = H.map(function(h) { return _xlC(h, _S.hdr); });
+  var dataRows = [];
+  allTx.forEach(function(t, idx) {
+    var inc = ['Ingreso','Ahorro','Inversión'].indexOf(t._type) >= 0;
+    var alt = idx % 2 === 1;
+    var bs = inc ? (alt ? _S.grnA : _S.grn) : (alt ? _S.redA : _S.red);
+    var fx = t.moneda && t.moneda !== 'CLP';
+    var row = [
+      _xlC(t.fecha, bs),
+      _xlC(t._type, bs),
+      _xlC(t.fondo || '', bs),
+      _xlC(t._type === 'Gasto' ? (t.categoria || '') : '', bs),
+      _xlC(t._type === 'Gasto' ? (t.donde || '') : '', bs),
+      _xlC(t.descripcion || '', bs),
+      _xlN(t.monto, bs, _S.num),
+      _xlC(fx ? t.moneda : '', bs),
+      fx ? _xlN(t.montoOriginal || t.monto, bs, _S.num) : _xlC('', bs),
+      _xlC(t._type === 'Gasto' ? (t.credito ? 'Tarjeta de Crédito' : 'Débito/Efectivo') : '', bs)
+    ];
+    dataRows.push(row);
+  });
+  var sumI = allTx.filter(function(t){ return ['Ingreso','Ahorro','Inversión'].indexOf(t._type)>=0; }).reduce(function(a,b){ return a+Number(b.monto); }, 0);
+  var sumG = allTx.filter(function(t){ return ['Gasto','Pago Crédito'].indexOf(t._type)>=0; }).reduce(function(a,b){ return a+Number(b.monto); }, 0);
+  var ts = Object.assign({}, _S.tot, { numFmt: _S.num });
+  var totRow = [
+    _xlC('TOTALES', _S.tot), _xlC('', _S.tot), _xlC('', _S.tot), _xlC('', _S.tot), _xlC('', _S.tot),
+    _xlC('Ingresos / Gastos', _S.tot),
+    _xlN(sumI, Object.assign({}, _S.tot, { font: { bold: true, color: { rgb: '1D7A5A' } } }), _S.num),
+    _xlN(sumG, Object.assign({}, _S.tot, { font: { bold: true, color: { rgb: 'C0392B' } } }), _S.num),
+    _xlN(sumI - sumG, Object.assign({}, _S.tot, { font: { bold: true } }), _S.num),
+    _xlC('', _S.tot)
   ];
+  var allRows = [hRow].concat(dataRows, [totRow]);
+  var ws = _xlSheet(allRows);
+  ws['!cols'] = _colWidths(dataRows, H);
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: H.length - 1 } }) };
+  return ws;
+}
 
-  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+function _sheetResumen(allTx) {
+  var rows = [];
+  var fondos = window.userFondos || [];
+  var isI = function(t){ return ['Ingreso','Ahorro','Inversión'].indexOf(t._type)>=0; };
+  var isG = function(t){ return ['Gasto','Pago Crédito'].indexOf(t._type)>=0; };
+  var sumI = allTx.filter(isI).reduce(function(a,b){ return a+Number(b.monto); }, 0);
+  var sumG = allTx.filter(isG).reduce(function(a,b){ return a+Number(b.monto); }, 0);
+  var sumAh = allTx.filter(function(t){ return t._type==='Ahorro'||(t._type==='Ingreso'&&t.fondo==='Ahorro'); }).reduce(function(a,b){ return a+Number(b.monto); },0);
+  var sumInv = allTx.filter(function(t){ return t._type==='Inversión'||(t._type==='Ingreso'&&(t.fondo==='Inversion'||t.fondo==='Inversión')); }).reduce(function(a,b){ return a+Number(b.monto); },0);
+  var bal = sumI - sumG;
+  var tasaAh = sumI > 0 ? sumAh / sumI : 0;
 
-  generateExcelFromTransactions(allTx, `Cartola_Anual_${year}`);
+  // Sección 1
+  rows.push([_xlC('RESUMEN GENERAL', _S.sec), _xlC('', _S.sec)]);
+  rows.push([_xlC('Concepto', _S.th), _xlC('Monto', _S.th)]);
+  rows.push([_xlC('Total Ingresos'), _xlN(sumI, { font: { color: { rgb: '1D7A5A' } } }, _S.num)]);
+  rows.push([_xlC('Total Gastos'), _xlN(sumG, { font: { color: { rgb: 'C0392B' } } }, _S.num)]);
+  rows.push([_xlC('Total Ahorro'), _xlN(sumAh, null, _S.num)]);
+  rows.push([_xlC('Total Inversión'), _xlN(sumInv, null, _S.num)]);
+  rows.push([_xlC('Balance Neto (Ingresos - Gastos)'), _xlN(bal, { font: { bold: true, color: { rgb: bal >= 0 ? '1D7A5A' : 'C0392B' } } }, _S.num)]);
+  rows.push([_xlC('Tasa de Ahorro (Ahorro / Ingresos)'), _xlN(tasaAh, null, _S.pct)]);
+  rows.push([_xlC('')]);
+
+  // Sección 2 — Gastos por Categoría
+  rows.push([_xlC('GASTOS POR CATEGORÍA', _S.sec), _xlC('', _S.sec), _xlC('', _S.sec)]);
+  rows.push([_xlC('Categoría', _S.th), _xlC('Monto Total', _S.th), _xlC('% del Total', _S.th)]);
+  var catMap = {};
+  allTx.filter(function(t){ return t._type==='Gasto'; }).forEach(function(t){ var c = t.categoria||'otro'; catMap[c] = (catMap[c]||0) + Number(t.monto); });
+  Object.entries(catMap).sort(function(a,b){ return b[1]-a[1]; }).forEach(function(e){
+    rows.push([_xlC(e[0]), _xlN(e[1], null, _S.num), _xlN(sumG > 0 ? e[1]/sumG : 0, null, _S.pct)]);
+  });
+  rows.push([_xlC('')]);
+
+  // Sección 3 — Por Fondo
+  rows.push([_xlC('GASTOS POR FONDO', _S.sec), _xlC('', _S.sec), _xlC('', _S.sec), _xlC('', _S.sec)]);
+  rows.push([_xlC('Fondo', _S.th), _xlC('Ingresos', _S.th), _xlC('Gastos', _S.th), _xlC('Balance', _S.th)]);
+  fondos.forEach(function(f){
+    var fi = allTx.filter(function(t){ return t.fondo===f && isI(t); }).reduce(function(a,b){ return a+Number(b.monto); },0);
+    var fg = allTx.filter(function(t){ return t.fondo===f && isG(t); }).reduce(function(a,b){ return a+Number(b.monto); },0);
+    rows.push([_xlC(f), _xlN(fi, null, _S.num), _xlN(fg, null, _S.num), _xlN(fi-fg, { font: { color: { rgb: fi-fg>=0?'1D7A5A':'C0392B' } } }, _S.num)]);
+  });
+  rows.push([_xlC('')]);
+
+  // Sección 4 — Medio de Pago
+  rows.push([_xlC('GASTOS POR MEDIO DE PAGO', _S.sec), _xlC('', _S.sec), _xlC('', _S.sec)]);
+  rows.push([_xlC('Medio', _S.th), _xlC('Monto', _S.th), _xlC('% del Total', _S.th)]);
+  var cred = allTx.filter(function(t){ return t._type==='Gasto' && t.credito; }).reduce(function(a,b){ return a+Number(b.monto); },0);
+  var deb = allTx.filter(function(t){ return t._type==='Gasto' && !t.credito; }).reduce(function(a,b){ return a+Number(b.monto); },0);
+  rows.push([_xlC('Tarjeta de Crédito'), _xlN(cred, null, _S.num), _xlN(sumG>0?cred/sumG:0, null, _S.pct)]);
+  rows.push([_xlC('Débito/Efectivo'), _xlN(deb, null, _S.num), _xlN(sumG>0?deb/sumG:0, null, _S.pct)]);
+
+  var ws = _xlSheet(rows);
+  ws['!cols'] = [{ wch: 38 }, { wch: 18 }, { wch: 14 }, { wch: 14 }];
+  return ws;
+}
+
+function _sheetMensual(year) {
+  var mNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  var mI = new Array(12).fill(0); var mG = new Array(12).fill(0); var mAh = new Array(12).fill(0); var mInv = new Array(12).fill(0);
+  db.ingresos.filter(function(i){ return i.fecha && i.fecha.startsWith(year); }).forEach(function(i){ mI[parseInt(i.fecha.split('-')[1])-1] += Number(i.monto); });
+  db.gastos.filter(function(g){ return g.fecha && g.fecha.startsWith(year); }).forEach(function(g){ mG[parseInt(g.fecha.split('-')[1])-1] += Number(g.monto); });
+  db.ahorros.filter(function(a){ return a.fecha && a.fecha.startsWith(year); }).forEach(function(a){ mAh[parseInt(a.fecha.split('-')[1])-1] += Number(a.monto); });
+  db.ingresos.filter(function(i){ return i.fecha && i.fecha.startsWith(year) && i.fondo==='Ahorro'; }).forEach(function(i){ mAh[parseInt(i.fecha.split('-')[1])-1] += Number(i.monto); });
+  db.inversiones.filter(function(i){ return i.fecha && i.fecha.startsWith(year); }).forEach(function(i){ mInv[parseInt(i.fecha.split('-')[1])-1] += Number(i.monto); });
+  db.ingresos.filter(function(i){ return i.fecha && i.fecha.startsWith(year) && (i.fondo==='Inversion'||i.fondo==='Inversión'); }).forEach(function(i){ mInv[parseInt(i.fecha.split('-')[1])-1] += Number(i.monto); });
+
+  var H = ['Mes','Ingresos','Gastos','Ahorro','Inversión','Balance'];
+  var rows = [H.map(function(h){ return _xlC(h, _S.hdr); })];
+  mNames.forEach(function(m, idx){
+    rows.push([
+      _xlC(m),
+      _xlN(mI[idx], null, _S.num), _xlN(mG[idx], null, _S.num),
+      _xlN(mAh[idx], null, _S.num), _xlN(mInv[idx], null, _S.num),
+      _xlN(mI[idx]-mG[idx], { font: { color: { rgb: mI[idx]-mG[idx]>=0?'1D7A5A':'C0392B' } } }, _S.num)
+    ]);
+  });
+  var ti=mI.reduce(function(a,b){return a+b;},0), tg=mG.reduce(function(a,b){return a+b;},0), tah=mAh.reduce(function(a,b){return a+b;},0), tinv=mInv.reduce(function(a,b){return a+b;},0);
+  rows.push([_xlC('TOTAL',_S.tot),_xlN(ti,_S.tot,_S.num),_xlN(tg,_S.tot,_S.num),_xlN(tah,_S.tot,_S.num),_xlN(tinv,_S.tot,_S.num),_xlN(ti-tg,_S.tot,_S.num)]);
+  var ws = _xlSheet(rows);
+  ws['!cols'] = [{ wch: 14 },{ wch: 16 },{ wch: 14 },{ wch: 14 },{ wch: 14 },{ wch: 14 }];
+  return ws;
+}
+
+function generateExcelFromTransactions(allTx, fileName, isAnual, period) {
+  if (typeof XLSX === 'undefined') { showToast('Error: librería Excel no cargada', 'error'); return; }
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, _sheetDetalle(allTx), 'Detalle');
+  XLSX.utils.book_append_sheet(wb, _sheetResumen(allTx), 'Resumen');
+  if (isAnual && period) XLSX.utils.book_append_sheet(wb, _sheetMensual(String(period)), 'Mensual');
+  XLSX.writeFile(wb, fileName + '.xlsx');
+  showToast('Excel generado correctamente', 'success');
+}
+
+window.exportCartolaMensual = function() {
+  var month = document.getElementById('filterStatsMonth').value;
+  if (!month) { showToast('Selecciona un mes a analizar primero', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Error: librería Excel no cargada', 'error'); return; }
+  var tx = getTransactionsByMonth(month);
+  var allTx = _buildAllTx(tx);
+  allTx.sort(function(a,b){ return new Date(a.fecha) - new Date(b.fecha); });
+  generateExcelFromTransactions(allTx, 'Cartola_Mensual_' + month, false, month);
+};
+
+window.exportCartolaAnual = function() {
+  var year = document.getElementById('filterStatsYear').value;
+  if (!year) { showToast('Ingresa un año primero', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Error: librería Excel no cargada', 'error'); return; }
+  var allTx = _buildAllTxYear(year);
+  allTx.sort(function(a,b){ return new Date(a.fecha) - new Date(b.fecha); });
+  generateExcelFromTransactions(allTx, 'Cartola_Anual_' + year, true, year);
+};
+
+window.exportCartolaMensualFromReg = function() {
+  var month = document.getElementById('filterRegMonth').value;
+  if (!month) { showToast('Selecciona un mes primero', 'warning'); return; }
+  if (typeof XLSX === 'undefined') { showToast('Error: librería Excel no cargada', 'error'); return; }
+  var tx = getTransactionsByMonth(month);
+  var allTx = _buildAllTx(tx);
+  allTx.sort(function(a,b){ return new Date(a.fecha) - new Date(b.fecha); });
+  generateExcelFromTransactions(allTx, 'Cartola_Mensual_' + month, false, month);
+};
+
+window.exportCartolaAnualFromReg = function() {
+  var month = document.getElementById('filterRegMonth').value;
+  if (!month) { showToast('Selecciona un mes primero para determinar el año', 'warning'); return; }
+  var year = month.split('-')[0];
+  if (typeof XLSX === 'undefined') { showToast('Error: librería Excel no cargada', 'error'); return; }
+  var allTx = _buildAllTxYear(year);
+  allTx.sort(function(a,b){ return new Date(a.fecha) - new Date(b.fecha); });
+  generateExcelFromTransactions(allTx, 'Cartola_Anual_' + year, true, year);
+};
+
 }
 
 // Funcionalidad base para regenerar la planilla
-function generateExcelFromTransactions(allTx, fileName) {
-  let excelData = [];
-  let saldoAcumulado = 0;
-  
-  allTx.forEach(t => {
-    let cargo = '';
-    let abono = '';
-    
-    if (t._type === 'Ingreso') {
-      abono = Number(t.monto);
-      saldoAcumulado += abono;
-    } else {
-      cargo = Number(t.monto);
-      saldoAcumulado -= cargo;
-    }
-
-    let descripcion = t.descripcion;
-    if (t._type === 'Gasto' && t.donde) {
-      descripcion = `${t.donde} - ${t.descripcion}`;
-    }
-
-    let categoriaFondo = t.categoria || t.fondo || "-";
-    
-    excelData.push({
-      "Fecha": t.fecha,
-      "Tipo": t._type,
-      "Concepto": categoriaFondo,
-      "Descripción": descripcion,
-      "Cargos (-)": cargo,
-      "Abonos (+)": abono,
-      "Saldo Cuenta": saldoAcumulado
-    });
-  });
-
-  excelData.push({ "Fecha": "", "Tipo": "", "Concepto": "", "Descripción": "", "Cargos (-)": "", "Abonos (+)": "", "Saldo Cuenta": "" });
-  
-  let totalCargos = excelData.reduce((acc, curr) => acc + (Number(curr["Cargos (-)"]) || 0), 0);
-  let totalAbonos = excelData.reduce((acc, curr) => acc + (Number(curr["Abonos (+)"]) || 0), 0);
-  
-  excelData.push({
-    "Fecha": "RESUMEN TOTAL",
-    "Tipo": "",
-    "Concepto": "",
-    "Descripción": "",
-    "Cargos (-)": totalCargos,
-    "Abonos (+)": totalAbonos,
-    "Saldo Cuenta": totalAbonos - totalCargos
-  });
-
-  const worksheet = XLSX.utils.json_to_sheet(excelData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, `Cartola`);
-
-  worksheet['!cols'] = [
-    { wch: 12 }, 
-    { wch: 15 }, 
-    { wch: 18 }, 
-    { wch: 40 }, 
-    { wch: 12 }, 
-    { wch: 12 }, 
-    { wch: 15 }  
-  ];
-
-  XLSX.writeFile(workbook, `${fileName}.xlsx`);
-}
-
-// === EXPORTAR DESDE REGISTRO ===
-window.exportCartolaMensualFromReg = function() {
-  const month = document.getElementById('filterRegMonth').value;
-  if (!month) { showToast('Selecciona un mes primero', 'warning'); return; }
-
-  if (typeof XLSX === 'undefined') {
-    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
-    return;
-  }
-
-  const tx = getTransactionsByMonth(month);
-  let allTx = [
-    ...tx.gastos.map(g => ({...g, _type: 'Gasto' })),
-    ...tx.ingresos.map(i => ({...i, _type: 'Ingreso' })),
-    ...tx.ahorros.map(a => ({...a, _type: 'Ahorro' })),
-    ...tx.inversiones.map(inv => ({...inv, _type: 'Inversión' })),
-    ...tx.creditos.map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
-  ];
-  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
-  generateExcelFromTransactions(allTx, `Cartola_Mensual_${month}`);
-}
-
-window.exportCartolaAnualFromReg = function() {
-  const month = document.getElementById('filterRegMonth').value;
-  if (!month) { showToast('Selecciona un mes primero para determinar el año', 'warning'); return; }
-  const year = month.split('-')[0];
-
-  if (typeof XLSX === 'undefined') {
-    showToast('Error: librería Excel no cargada. Revisa tu conexión', 'error');
-    return;
-  }
-
-  const filterFn = (t) => t.fecha && t.fecha.startsWith(year);
-  const filterCredito = (t) => {
-    const f = t.fecha_pago || t.fecha;
-    return f && f.startsWith(year);
-  };
-
-  let allTx = [
-    ...db.gastos.filter(filterFn).map(g => ({...g, _type: 'Gasto' })),
-    ...db.ingresos.filter(filterFn).map(i => ({...i, _type: 'Ingreso' })),
-    ...db.ahorros.filter(filterFn).map(a => ({...a, _type: 'Ahorro' })),
-    ...db.inversiones.filter(filterFn).map(inv => ({...inv, _type: 'Inversión' })),
-    ...db.creditos.filter(filterCredito).map(c => ({...c, _type: 'Pago Crédito', fecha: c.fecha_pago || c.fecha }))
-  ];
-  allTx.sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
-  generateExcelFromTransactions(allTx, `Cartola_Anual_${year}`);
-}
-
 // === PRIVACIDAD ===
 window.togglePrivacy = function(type) {
   const isHidden = localStorage.getItem('hide' + type) === 'true';
