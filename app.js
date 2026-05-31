@@ -44,6 +44,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Restaurar tema guardado
   applyTheme(localStorage.getItem('financeTheme') || 'default');
 
+  // Manejar resultado de redirect (si venimos de signInWithRedirect)
+  auth.getRedirectResult().then((result) => {
+    // El onAuthStateChanged se encargará del usuario si el redirect fue exitoso
+  }).catch((err) => {
+    console.error('Error en redirect result:', err);
+    if (err.code && err.code !== 'auth/popup-closed-by-user') {
+      showToast('Error al iniciar sesión: ' + err.message, 'error');
+    }
+  });
+
   // Escuchar cambios de sesión
   auth.onAuthStateChanged(async (user) => {
     if (user) {
@@ -66,12 +76,10 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loginWithGoogle() {
   const provider = new firebase.auth.GoogleAuthProvider();
   try {
-    await auth.signInWithPopup(provider);
+    await auth.signInWithRedirect(provider);
   } catch (err) {
     console.error('Error en login:', err);
-    if (err.code !== 'auth/popup-closed-by-user') {
-      showToast('Error al iniciar sesión: ' + err.message, 'error');
-    }
+    showToast('Error al iniciar sesión: ' + err.message, 'error');
   }
 }
 
