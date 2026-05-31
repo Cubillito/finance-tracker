@@ -2140,9 +2140,6 @@ window.exportCartolaAnualFromReg = function() {
   generateExcelFromTransactions(allTx, 'Cartola_Anual_' + year, true, year);
 };
 
-}
-
-// Funcionalidad base para regenerar la planilla
 // === PRIVACIDAD ===
 window.togglePrivacy = function(type) {
   const isHidden = localStorage.getItem('hide' + type) === 'true';
