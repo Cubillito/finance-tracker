@@ -128,9 +128,20 @@ async function deleteItem(collectionName, itemId) {
   await docRef.delete();
 }
 
+function showSkeleton() {
+  const sk = document.getElementById('skeletonLoader');
+  if (sk) sk.classList.add('visible');
+}
+
+function hideSkeleton() {
+  const sk = document.getElementById('skeletonLoader');
+  if (sk) sk.classList.remove('visible');
+}
+
 async function loadFromFirestore() {
+  showSkeleton();
   try {
-    if (!currentUser) return;
+    if (!currentUser) { hideSkeleton(); return; }
     const collections = ['ingresos', 'gastos', 'ahorros', 'inversiones', 'creditos', 'deudas', 'recurrentes', 'presupuestos', 'config'];
     const baseRef = firestore.collection('users').doc(currentUser.uid);
     
@@ -200,6 +211,8 @@ async function loadFromFirestore() {
       if (raw) db = { ...emptyDb(), ...JSON.parse(raw) };
     } catch(e) {}
     markUnsaved();
+  } finally {
+    hideSkeleton();
   }
 }
 
@@ -736,6 +749,134 @@ function getTransactionsByMonth(yearMonth) { // yearMonth = 'YYYY-MM'
   };
 }
 
+// === COUNT-UP ANIMATION ===
+function animateCardValue(el, targetValue) {
+  if (!el) return;
+  const duration = 550;
+  const startTime = performance.now();
+  function step(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+    el.textContent = formatMoney(Math.round(eased * targetValue));
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// === DELTA BADGE (comparativa mes anterior) ===
+function renderDelta(elId, current, previous) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.className = 'card-delta';
+  if (previous === 0 && current === 0) { el.style.display = 'none'; return; }
+  el.style.display = 'inline-flex';
+  if (previous === 0) {
+    el.textContent = 'Nuevo';
+    el.classList.add('delta-neutral');
+  } else {
+    const pct = ((current - previous) / Math.abs(previous)) * 100;
+    const arrow = pct > 0 ? '↑' : '↓';
+    el.textContent = `${arrow} ${Math.abs(pct).toFixed(0)}% vs mes anterior`;
+    el.classList.add(pct > 0 ? 'delta-up' : 'delta-down');
+  }
+  requestAnimationFrame(() => el.classList.add('visible'));
+}
+
+// === DONUT CHART (gastos por categoría) ===
+let _donutChartInstance = null;
+
+function renderDonutAndStats(tx, txPrev, iTotal) {
+  const row = document.getElementById('resumenChartsRow');
+  const canvas = document.getElementById('donutChart');
+  const emptyMsg = document.getElementById('donutEmpty');
+  const statsEl = document.getElementById('resumenMesStats');
+  if (!row || !canvas) return;
+
+  // Agrupar gastos por categoría
+  const catMap = {};
+  tx.gastos.forEach(g => {
+    const c = g.categoria || 'otro';
+    catMap[c] = (catMap[c] || 0) + Number(g.monto);
+  });
+
+  const hasCats = Object.keys(catMap).length > 0;
+  row.style.display = 'grid';
+
+  if (_donutChartInstance) { _donutChartInstance.destroy(); _donutChartInstance = null; }
+
+  if (!hasCats) {
+    canvas.style.display = 'none';
+    if (emptyMsg) emptyMsg.style.display = 'block';
+  } else {
+    canvas.style.display = 'block';
+    if (emptyMsg) emptyMsg.style.display = 'none';
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const palette = ['#3b82f6','#10b981','#f43f5e','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+    const labels = Object.keys(catMap).map(k => {
+      const found = CATEGORIAS.find(c => c.value === k);
+      return found ? found.label : k;
+    });
+    const data = Object.values(catMap);
+
+    _donutChartInstance = new Chart(canvas, {
+      type: 'doughnut',
+      data: {
+        labels,
+        datasets: [{ data, backgroundColor: palette.slice(0, data.length), borderWidth: 2, borderColor: isDark ? '#0f172a' : '#fff' }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        cutout: '65%',
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              color: isDark ? '#94a3b8' : '#64748b',
+              font: { size: 11, family: 'Outfit' },
+              padding: 12,
+              boxWidth: 12,
+              boxHeight: 12
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${formatMoney(ctx.raw)}`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Panel de resumen del mes
+  if (statsEl) {
+    const gTotal = tx.gastos.reduce((a, b) => a + Number(b.monto), 0);
+    const gPrev = txPrev.gastos.reduce((a, b) => a + Number(b.monto), 0);
+    const iPrev = txPrev.ingresos.reduce((a, b) => a + Number(b.monto), 0);
+    const balance = iTotal - gTotal;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    const stat = (label, value, color) =>
+      `<div style="display:flex; justify-content:space-between; align-items:center; padding:0.7rem 1rem; background:rgba(${color},0.08); border-radius:10px; border:1px solid rgba(${color},0.15);">
+        <span style="font-size:0.9rem; color:var(--color-text-muted)">${label}</span>
+        <span style="font-weight:700; font-size:1rem; color:var(--color-text)">${formatMoney(value)}</span>
+      </div>`;
+
+    const trendGasto = gPrev > 0 ? ((gTotal - gPrev) / gPrev * 100).toFixed(0) : null;
+    const trendIngreso = iPrev > 0 ? ((iTotal - iPrev) / iPrev * 100).toFixed(0) : null;
+
+    statsEl.innerHTML =
+      stat('💰 Ingresos del mes', iTotal, '16, 185, 129') +
+      stat('💸 Gastos del mes', gTotal, '244, 63, 94') +
+      stat('📊 Balance', balance, balance >= 0 ? '16, 185, 129' : '244, 63, 94') +
+      (trendGasto !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center; margin-top:0.2rem;">Gastos ${trendGasto > 0 ? '↑' : '↓'} ${Math.abs(trendGasto)}% vs mes anterior</p>` : '') +
+      (trendIngreso !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center;">Ingresos ${trendIngreso > 0 ? '↑' : '↓'} ${Math.abs(trendIngreso)}% vs mes anterior</p>` : '');
+  }
+}
+
 // === RENDER: RESUMEN MENSUAL ===
 function renderResumen() {
   const month = document.getElementById('filterResumenMonth').value;
@@ -767,10 +908,20 @@ function renderResumen() {
   let oldAhTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0);
   let oldInvTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0);
 
+  // --- Mes anterior para comparativas ---
+  const [yr, mo] = month.split('-').map(Number);
+  const prevDate = new Date(yr, mo - 2, 1); // mes anterior
+  const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+  const txPrev = getTransactionsByMonth(prevMonth);
+  let gPersPersonal = txPrev.gastos.filter(g => g.fondo === (window.userFondos[0] || 'Personal')).reduce((a, b) => a + Number(b.monto), 0);
+  let gPersU = txPrev.gastos.filter(g => g.fondo === (window.userFondos[1] || 'U')).reduce((a, b) => a + Number(b.monto), 0);
+  let gCreditoPrev = 0; let gDebitoPrev = 0;
+  txPrev.gastos.forEach(g => { if (g.credito) gCreditoPrev += Number(g.monto); else gDebitoPrev += Number(g.monto); });
+
   document.getElementById('sumAhorro').dataset.raw = ahTotal;
   document.getElementById('sumInversion').dataset.raw = invTotal;
-  document.getElementById('sumCredito').textContent = formatMoney(gCredito);
-  document.getElementById('sumDebito').textContent = formatMoney(gDebito);
+  animateCardValue(document.getElementById('sumCredito'), gCredito);
+  animateCardValue(document.getElementById('sumDebito'), gDebito);
 
   // Dynamic Saldos Hero
   const heroContainer = document.getElementById('heroSaldosContainer');
@@ -780,7 +931,6 @@ function renderResumen() {
       let fIngresos = tx.ingresos.filter(i => i.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
       let fGastos = tx.gastos.filter(g => g.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
       let saldo = fIngresos - fGastos;
-      
       heroContainer.innerHTML += `
         <div class="hero-saldo-box">
           <div class="card-title">${fondo}</div>
@@ -790,20 +940,28 @@ function renderResumen() {
     });
   }
 
-  // Generic Gasto display
+  // Generic Gasto display con count-up y delta
   const sumPers = document.getElementById('sumGastoPersonal');
   if (sumPers && window.userFondos[0]) {
     sumPers.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">shopping_cart</span> Gasto ${window.userFondos[0]}`;
     let g1 = tx.gastos.filter(g => g.fondo === window.userFondos[0]).reduce((a, b) => a + Number(b.monto), 0);
-    sumPers.textContent = formatMoney(g1);
+    animateCardValue(sumPers, g1);
+    renderDelta('deltaGastoPersonal', g1, gPersPersonal);
   } else if (sumPers) sumPers.parentElement.style.display = 'none';
-  
+
   const sumU = document.getElementById('sumGastoU');
   if (sumU && window.userFondos[1]) {
     sumU.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">school</span> Gasto ${window.userFondos[1]}`;
     let g2 = tx.gastos.filter(g => g.fondo === window.userFondos[1]).reduce((a, b) => a + Number(b.monto), 0);
-    sumU.textContent = formatMoney(g2);
+    animateCardValue(sumU, g2);
+    renderDelta('deltaGastoU', g2, gPersU);
   } else if (sumU) sumU.parentElement.style.display = 'none';
+
+  renderDelta('deltaCredito', gCredito, gCreditoPrev);
+  renderDelta('deltaDebito', gDebito, gDebitoPrev);
+
+  // Donut chart y panel de resumen
+  renderDonutAndStats(tx, txPrev, iTotal);
 
   applyPrivacySettings();
 
@@ -1888,18 +2046,25 @@ function renderStatsAnuales() {
 // === SELECTOR DE TEMA ===
 
 function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme');
-  const next = current === 'pink' ? 'default' : 'pink';
+  const current = document.documentElement.getAttribute('data-theme') || 'default';
+  const order = ['default', 'dark', 'pink'];
+  const next = order[(order.indexOf(current) + 1) % order.length];
   applyTheme(next);
   localStorage.setItem('financeTheme', next);
 }
 window.toggleTheme = toggleTheme;
 
 function applyTheme(theme) {
-  if (theme === 'pink') {
-    document.documentElement.setAttribute('data-theme', 'pink');
+  if (theme === 'pink' || theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', theme);
   } else {
     document.documentElement.removeAttribute('data-theme');
+  }
+  // Actualizar texto del botón
+  const btn = document.getElementById('btnThemeToggle');
+  if (btn) {
+    const labels = { default: '🌙 Oscuro', dark: '🌸 Rosa', pink: '☀️ Claro' };
+    btn.textContent = labels[theme] || '🌙 Oscuro';
   }
 }
 

@@ -47,7 +47,7 @@
       <div class="file-status">
         <span id="saveStatus"><span class="indicator saved"></span> Guardado</span>
         <button id="btnSaveApp" class="btn btn-success btn-sm" style="display: none;" onclick="saveToFirestore()">💾 Guardar</button>
-        <button class="btn btn-outline btn-sm" id="btnThemeToggle" onclick="toggleTheme()">🎨 Tema</button>
+        <button class="btn btn-outline btn-sm" id="btnThemeToggle" onclick="toggleTheme()">🌙 Oscuro</button>
         <div id="userInfo" class="user-info" style="display: none;">
           <img id="userAvatar" class="user-avatar" src="" alt="avatar">
           <span id="userName" class="user-name"></span>
@@ -101,10 +101,29 @@
 
 
 
+      <!-- Skeleton loader -->
+      <div id="skeletonLoader">
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:1.5rem; margin-bottom:2.5rem;">
+          <div class="skeleton-card" style="height:100px;"></div>
+          <div class="skeleton-card" style="height:100px;"></div>
+          <div class="skeleton-card" style="height:100px;"></div>
+          <div class="skeleton-card" style="height:100px;"></div>
+        </div>
+        <div class="skeleton-card" style="height:280px;"></div>
+      </div>
+
       <div class="summary-grid">
-        <div class="card card-danger"><div class="card-title"><span class="material-icons-round">shopping_cart</span> Gasto Personal</div><div class="card-value text-danger" id="sumGastoPersonal">$0</div></div>
-        <div class="card card-danger"><div class="card-title"><span class="material-icons-round">school</span> Gasto U</div><div class="card-value text-danger" id="sumGastoU">$0</div></div>
-        
+        <div class="card card-danger">
+          <div class="card-title"><span class="material-icons-round">shopping_cart</span> Gasto Personal</div>
+          <div class="card-value text-danger" id="sumGastoPersonal">$0</div>
+          <span class="card-delta" id="deltaGastoPersonal"></span>
+        </div>
+        <div class="card card-danger">
+          <div class="card-title"><span class="material-icons-round">school</span> Gasto U</div>
+          <div class="card-value text-danger" id="sumGastoU">$0</div>
+          <span class="card-delta" id="deltaGastoU"></span>
+        </div>
+
         <div class="card card-success">
           <div class="card-title" style="justify-content: space-between; width: 100%;">
             <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">savings</span> Ahorro</div>
@@ -112,7 +131,7 @@
           </div>
           <div class="card-value text-success privacy-value" id="sumAhorro" data-raw="0">$0</div>
         </div>
-        
+
         <div class="card card-success">
           <div class="card-title" style="justify-content: space-between; width: 100%;">
             <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">trending_up</span> Inversión</div>
@@ -121,8 +140,31 @@
           <div class="card-value text-success privacy-value" id="sumInversion" data-raw="0">$0</div>
         </div>
 
-        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">credit_card</span> Gasto Crédito</div><div class="card-value" id="sumCredito">$0</div></div>
-        <div class="card card-neutral"><div class="card-title"><span class="material-icons-round">account_balance</span> Gasto Débito/Ej.</div><div class="card-value" id="sumDebito">$0</div></div>
+        <div class="card card-neutral">
+          <div class="card-title"><span class="material-icons-round">credit_card</span> Gasto Crédito</div>
+          <div class="card-value" id="sumCredito">$0</div>
+          <span class="card-delta" id="deltaCredito"></span>
+        </div>
+        <div class="card card-neutral">
+          <div class="card-title"><span class="material-icons-round">account_balance</span> Gasto Débito/Ej.</div>
+          <div class="card-value" id="sumDebito">$0</div>
+          <span class="card-delta" id="deltaDebito"></span>
+        </div>
+      </div>
+
+      <!-- Donut chart: gastos por categoría -->
+      <div class="resumen-charts-row" id="resumenChartsRow" style="display:none;">
+        <div class="resumen-donut-wrap">
+          <h4>Gastos por categoría</h4>
+          <div class="donut-canvas-wrap">
+            <canvas id="donutChart"></canvas>
+            <p class="donut-empty" id="donutEmpty" style="display:none;">Sin gastos este mes</p>
+          </div>
+        </div>
+        <div class="resumen-donut-wrap">
+          <h4>Resumen del mes</h4>
+          <div id="resumenMesStats" style="display:flex; flex-direction:column; gap:0.8rem; margin-top:0.5rem;"></div>
+        </div>
       </div>
 
       <div id="budgetProgressContainer" style="display: none; margin-bottom: 2.5rem;">
@@ -708,6 +750,6 @@
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>
