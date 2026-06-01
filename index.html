@@ -176,6 +176,15 @@
         </div>
       </div>
 
+      <!-- Deudas pendientes (siempre visibles sin importar el mes) -->
+      <div id="deudasPendientesSection" class="deudas-pendientes-section" style="display:none;">
+        <div class="section-title">
+          <h3>⚠️ Deudas Pendientes</h3>
+          <a class="btn btn-outline btn-sm" onclick="document.querySelector('[data-target=view-deudas]').click()">Ver todas →</a>
+        </div>
+        <div id="deudasPendientesGrid" class="deudas-pendientes-grid"></div>
+      </div>
+
       <div class="section-title">
         <h3>Últimas Transacciones (Mes Actual)</h3>
       </div>
@@ -379,6 +388,12 @@
         </div>
       </div>
       <p class="text-muted mb-4">Define gastos o ingresos fijos (como la mesada o suscripciones). Aplícalos manualmente cada inicio de mes.</p>
+      <!-- Banner recordatorio -->
+      <div id="recurrentesBanner" class="recurrentes-banner" style="display:none;">
+        <span class="material-icons-round">notification_important</span>
+        <span id="recurrentesBannerText">Tienes plantillas activas sin aplicar este mes.</span>
+        <button class="btn btn-sm" style="background:#f59e0b;color:white;" onclick="document.getElementById('btnApplyRecurrentes').click()">Aplicar ahora</button>
+      </div>
       <div class="table-container">
         <table>
           <thead>
@@ -513,6 +528,11 @@
             </div>
             <p id="txDistribuirError" style="display:none; color:var(--color-danger); font-size:0.82rem; margin-top:0.4rem;">⚠️ La suma debe ser exactamente 100%</p>
           </div>
+        </div>
+
+        <div class="form-group tx-nota-field">
+          <label>Nota (opcional)</label>
+          <textarea id="txNota" class="form-control" placeholder="Agrega una nota o detalle adicional..."></textarea>
         </div>
 
         <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 1rem;">Guardar</button>
@@ -667,9 +687,39 @@
         <button class="btn btn-primary" onclick="addFondoConfig()"><span class="material-icons-round">add</span></button>
       </div>
 
-      <div style="border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1rem;">
+      <div style="border-top: 1px solid var(--color-border); padding-top: 1.5rem; margin-top: 1rem; display:flex; flex-direction:column; gap:0.6rem;">
         <button class="btn btn-outline" style="width:100%;" onclick="openDistribucionModal()">
           <span class="material-icons-round">pie_chart</span> Distribución de Ingresos
+        </button>
+        <button class="btn btn-outline" style="width:100%;" onclick="openCategoriasModal()">
+          <span class="material-icons-round">label</span> Gestionar Categorías
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Categorías -->
+  <div class="modal" id="modalCategorias">
+    <div class="modal-content" style="max-width: 450px;">
+      <div class="modal-header">
+        <h2><span class="material-icons-round" style="vertical-align:middle;">label</span> Categorías de Gasto</h2>
+        <button class="close-modal" onclick="document.getElementById('modalCategorias').classList.remove('active')">&times;</button>
+      </div>
+      <p class="text-muted" style="margin-bottom:1.5rem; font-size:0.9rem;">Personaliza las categorías disponibles al registrar un gasto.</p>
+      <div id="categoriasListContainer" style="display:flex; flex-direction:column; gap:0.5rem; margin-bottom:2rem; max-height:260px; overflow-y:auto;">
+        <!-- Se inserta por JS -->
+      </div>
+      <div class="form-row" style="border-top:1px solid var(--color-border); padding-top:1.5rem; margin-top:0.5rem; align-items:flex-end;">
+        <div class="form-group" style="flex:0 0 70px; margin-bottom:0;">
+          <label>Emoji</label>
+          <input type="text" id="nuevaCatEmoji" class="form-control" placeholder="🏷️" maxlength="3" style="text-align:center; font-size:1.3rem;">
+        </div>
+        <div class="form-group" style="flex:1; margin-bottom:0;">
+          <label>Nombre</label>
+          <input type="text" id="nuevaCatNombre" class="form-control" placeholder="Ej: Mascotas">
+        </div>
+        <button class="btn btn-primary" onclick="addCategoriaConfig()" style="margin-bottom:0; flex-shrink:0;">
+          <span class="material-icons-round">add</span>
         </button>
       </div>
     </div>
@@ -750,6 +800,6 @@
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

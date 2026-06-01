@@ -1521,3 +1521,170 @@ tbody tr:last-child td { border-bottom: none; }
     grid-template-columns: 1fr;
   }
 }
+
+/* ============================================================
+   DEUDAS PENDIENTES (en resumen)
+   ============================================================ */
+.deudas-pendientes-section {
+  margin-bottom: 2.5rem;
+}
+
+.deudas-pendientes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.deuda-card-mini {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.deuda-card-mini:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.deuda-card-mini.me-deben {
+  border-left: 4px solid var(--color-success);
+  background: linear-gradient(90deg, rgba(16,185,129,0.04), transparent);
+}
+.deuda-card-mini.les-debo {
+  border-left: 4px solid var(--color-danger);
+  background: linear-gradient(90deg, rgba(244,63,94,0.04), transparent);
+}
+.deuda-card-mini .deuda-persona {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.deuda-card-mini .deuda-monto {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.deuda-card-mini .deuda-desc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.1rem;
+}
+.deuda-card-mini .deuda-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+/* ============================================================
+   BANNER RECORDATORIO RECURRENTES
+   ============================================================ */
+.recurrentes-banner {
+  display: none;
+  background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(245,158,11,0.06));
+  border: 1px solid rgba(245,158,11,0.35);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.4rem;
+  margin-bottom: 1.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  font-weight: 500;
+  font-size: 0.93rem;
+  color: var(--color-text);
+}
+.recurrentes-banner .material-icons-round {
+  color: #f59e0b;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+.recurrentes-banner button {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .recurrentes-banner {
+  background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.07));
+}
+
+/* Burbuja de aviso en el tab de recurrentes */
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 8px;
+  height: 8px;
+  background: #f59e0b;
+  border-radius: 50%;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  box-shadow: 0 0 0 2px var(--color-surface);
+  animation: pulseBadge 2s infinite;
+}
+@keyframes pulseBadge {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.8; }
+}
+
+/* ============================================================
+   NOTA EN TRANSACCIONES
+   ============================================================ */
+.tx-nota-field textarea {
+  min-height: 60px;
+  resize: vertical;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.tx-nota-display {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   MODAL GESTIONAR CATEGORÍAS
+   ============================================================ */
+.cat-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+  background: rgba(0,0,0,0.02);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-solid);
+  margin-bottom: 0.5rem;
+}
+[data-theme="dark"] .cat-list-item {
+  background: rgba(255,255,255,0.03);
+}
+.cat-list-item span {
+  flex: 1;
+  font-size: 0.92rem;
+}
+.cat-list-item button {
+  flex-shrink: 0;
+}
+
+/* Balance proyectado */
+.balance-proyectado-row {
+  margin-top: 0.5rem;
+  padding-top: 0.7rem;
+  border-top: 1px dashed var(--color-border-solid);
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.balance-proyectado-row strong {
+  color: var(--color-text);
+}

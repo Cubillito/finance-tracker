@@ -182,6 +182,14 @@ async function loadFromFirestore() {
     }
     window.userFondos = confFondos.items;
 
+    // Configurar categorías personalizadas
+    const confCats = db.config.find(c => c.id === 'userCategorias');
+    if (confCats && Array.isArray(confCats.items) && confCats.items.length > 0) {
+      CATEGORIAS = confCats.items;
+    } else {
+      CATEGORIAS = [...CATEGORIAS_DEFAULT];
+    }
+
     // Configurar distribución de ingresos
     let confDist = db.config.find(c => c.id === 'ingresosDistribucion');
     if (confDist) {
@@ -511,8 +519,8 @@ function initNav() {
 // Formato moneda CLP
 const formatMoney = (val) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(val);
 
-// === CATEGORÍAS CENTRALIZADAS ===
-const CATEGORIAS = [
+// === CATEGORÍAS CENTRALIZADAS (personalizables) ===
+const CATEGORIAS_DEFAULT = [
   { value: 'comida',       label: '🍔 Comida' },
   { value: 'transporte',   label: '⛽ Transporte' },
   { value: 'salud',        label: '💊 Salud' },
@@ -522,12 +530,77 @@ const CATEGORIAS = [
   { value: 'educación',    label: '📚 Educación' },
   { value: 'otro',         label: 'Otro' }
 ];
+let CATEGORIAS = [...CATEGORIAS_DEFAULT];
 
 function populateCategoriasSelect(selectId, includePlaceholder = true) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const placeholder = includePlaceholder ? '<option value="">Seleccione...</option>' : '<option value="">Todas</option>';
   sel.innerHTML = placeholder + CATEGORIAS.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
+}
+
+function refreshCategoriasSelects() {
+  ['txCat', 'recCat', 'metaCategoria'].forEach(id => populateCategoriasSelect(id, true));
+  populateCategoriasSelect('filterRegCat', false);
+}
+
+// Gestión de categorías
+window.openCategoriasModal = function() {
+  renderCategoriasList();
+  document.getElementById('modalCategorias').classList.add('active');
+};
+
+function renderCategoriasList() {
+  const container = document.getElementById('categoriasListContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  CATEGORIAS.forEach((cat, idx) => {
+    const isDefault = CATEGORIAS_DEFAULT.some(d => d.value === cat.value);
+    const item = document.createElement('div');
+    item.className = 'cat-list-item';
+    item.innerHTML = `
+      <span style="font-size:1.2rem;">${cat.label.split(' ')[0]}</span>
+      <span>${cat.label.split(' ').slice(1).join(' ') || cat.label}</span>
+      ${!isDefault
+        ? `<button class="btn btn-danger btn-sm" onclick="deleteCategoriaConfig(${idx})" title="Eliminar">🗑</button>`
+        : `<span class="text-muted" style="font-size:0.75rem; margin-left:auto;">predeterminada</span>`
+      }
+    `;
+    container.appendChild(item);
+  });
+}
+
+window.addCategoriaConfig = async function() {
+  const emoji = (document.getElementById('nuevaCatEmoji').value || '🏷️').trim();
+  const nombre = document.getElementById('nuevaCatNombre').value.trim();
+  if (!nombre) { showToast('Ingresa un nombre para la categoría', 'warning'); return; }
+  const value = nombre.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_áéíóúñ]/g, '');
+  if (CATEGORIAS.some(c => c.value === value)) { showToast('Ya existe esa categoría', 'warning'); return; }
+  CATEGORIAS.push({ value, label: `${emoji} ${nombre}` });
+  document.getElementById('nuevaCatEmoji').value = '';
+  document.getElementById('nuevaCatNombre').value = '';
+  await saveCategoriasConfig();
+  renderCategoriasList();
+  refreshCategoriasSelects();
+  showToast(`Categoría "${nombre}" agregada`, 'success');
+};
+
+window.deleteCategoriaConfig = async function(idx) {
+  const cat = CATEGORIAS[idx];
+  showConfirmToast(`¿Eliminar categoría "${cat.label}"?`, async () => {
+    CATEGORIAS.splice(idx, 1);
+    await saveCategoriasConfig();
+    renderCategoriasList();
+    refreshCategoriasSelects();
+    showToast('Categoría eliminada', 'success');
+  });
+};
+
+async function saveCategoriasConfig() {
+  const doc = { id: 'userCategorias', items: CATEGORIAS };
+  const existing = db.config.find(c => c.id === 'userCategorias');
+  if (existing) { existing.items = CATEGORIAS; } else { db.config.push(doc); }
+  await saveItem('config', doc);
 }
 
 function populateFilterRegFondo() {
@@ -713,10 +786,52 @@ window.deleteMeta = function(id) {
   });
 }
 
+function checkRecurrentesPendientes() {
+  const activos = (db.recurrentes || []).filter(r => r.activo);
+  if (activos.length === 0) {
+    // Ocultar badge y banner
+    document.querySelectorAll('.recurrentes-tab-badge').forEach(b => b.remove());
+    const banner = document.getElementById('recurrentesBanner');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
+  const d = new Date();
+  const currentMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const aplicados = [...db.gastos, ...db.ingresos].filter(t => t.recurrente && t.fecha && t.fecha.startsWith(currentMonth));
+  const pendientes = aplicados.length === 0;
+
+  // Badge en el tab
+  document.querySelectorAll('.recurrentes-tab-badge').forEach(b => b.remove());
+  if (pendientes) {
+    document.querySelectorAll('[data-target="view-recurrentes"]').forEach(btn => {
+      if (!btn.querySelector('.recurrentes-tab-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'tab-badge recurrentes-tab-badge';
+        btn.style.position = 'relative';
+        btn.appendChild(badge);
+      }
+    });
+  }
+
+  // Banner dentro de la vista
+  const banner = document.getElementById('recurrentesBanner');
+  if (banner) {
+    if (pendientes) {
+      const mes = new Date(d.getFullYear(), d.getMonth(), 1).toLocaleString('es-CL', { month: 'long' });
+      document.getElementById('recurrentesBannerText').textContent =
+        `Tienes ${activos.length} plantilla${activos.length > 1 ? 's' : ''} activa${activos.length > 1 ? 's' : ''} sin aplicar en ${mes}.`;
+      banner.style.display = 'flex';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+}
+
 function refreshViews() {
   // Siempre actualizar resumen y metas (sin gráficos)
   renderResumen();
   renderMetasList();
+  checkRecurrentesPendientes();
 
   // Detectar vista activa
   const activeView = document.querySelector('.view.active');
@@ -868,11 +983,23 @@ function renderDonutAndStats(tx, txPrev, iTotal) {
     const trendGasto = gPrev > 0 ? ((gTotal - gPrev) / gPrev * 100).toFixed(0) : null;
     const trendIngreso = iPrev > 0 ? ((iTotal - iPrev) / iPrev * 100).toFixed(0) : null;
 
+    // Balance proyectado con recurrentes activos
+    const activos = (db.recurrentes || []).filter(r => r.activo);
+    const proyIngreso = activos.filter(r => r.tipo === 'ingreso').reduce((a, r) => a + Number(r.monto), 0);
+    const proyGasto = activos.filter(r => r.tipo === 'gasto').reduce((a, r) => a + Number(r.monto), 0);
+    const balanceProyectado = balance + proyIngreso - proyGasto;
+    const tieneRecurrentes = activos.length > 0;
+
     statsEl.innerHTML =
       stat('💰 Ingresos del mes', iTotal, '16, 185, 129') +
       stat('💸 Gastos del mes', gTotal, '244, 63, 94') +
-      stat('📊 Balance', balance, balance >= 0 ? '16, 185, 129' : '244, 63, 94') +
-      (trendGasto !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center; margin-top:0.2rem;">Gastos ${trendGasto > 0 ? '↑' : '↓'} ${Math.abs(trendGasto)}% vs mes anterior</p>` : '') +
+      stat('📊 Balance actual', balance, balance >= 0 ? '16, 185, 129' : '244, 63, 94') +
+      (tieneRecurrentes ? `
+        <div class="balance-proyectado-row">
+          <span class="material-icons-round" style="font-size:0.95rem;">trending_flat</span>
+          Balance proyectado (con recurrentes): <strong style="color:${balanceProyectado >= 0 ? 'var(--color-success-dark)' : 'var(--color-danger-dark)'}">${formatMoney(balanceProyectado)}</strong>
+        </div>` : '') +
+      (trendGasto !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center; margin-top:0.4rem;">Gastos ${trendGasto > 0 ? '↑' : '↓'} ${Math.abs(trendGasto)}% vs mes anterior</p>` : '') +
       (trendIngreso !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center;">Ingresos ${trendIngreso > 0 ? '↑' : '↓'} ${Math.abs(trendIngreso)}% vs mes anterior</p>` : '');
   }
 }
@@ -1069,6 +1196,43 @@ function renderResumen() {
   } else {
     resumenMsg.style.display = 'none';
   }
+
+  // === DEUDAS PENDIENTES (sin importar el mes) ===
+  renderDeudasPendientesEnResumen();
+}
+
+function renderDeudasPendientesEnResumen() {
+  const section = document.getElementById('deudasPendientesSection');
+  const grid = document.getElementById('deudasPendientesGrid');
+  if (!section || !grid) return;
+
+  const pendientes = (db.deudas || []).filter(d => !d.pagado);
+
+  if (pendientes.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  grid.innerHTML = '';
+
+  pendientes.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+  pendientes.forEach(d => {
+    const esMeDeben = d.tipo === 'me_deben';
+    const card = document.createElement('div');
+    card.className = `deuda-card-mini ${esMeDeben ? 'me-deben' : 'les-debo'}`;
+    card.innerHTML = `
+      <div class="deuda-persona">${esMeDeben ? '✅' : '⛽'} ${d.persona}</div>
+      <div class="deuda-monto ${esMeDeben ? 'text-success' : 'text-danger'}">${formatMoney(d.monto)}</div>
+      <div class="deuda-desc">${d.descripcion || ''}</div>
+      <div class="deuda-meta">
+        <span>📅 ${d.fecha}</span>
+        ${d.fondo ? `<span>• ${d.fondo}</span>` : ''}
+      </div>
+    `;
+    grid.appendChild(card);
+  });
 }
 
 // === RENDER: REGISTRO GENERAL ===
@@ -1135,6 +1299,7 @@ function renderRegistro() {
     if (item._type === 'ingreso') colorClass = 'text-success';
 
     let desc = item._type === 'gasto' ? `<b>${item.donde}</b> - ${item.descripcion}` : item.descripcion;
+    if (item.nota) desc += `<div class="tx-nota-display">📝 ${item.nota}</div>`;
 
     let tr = document.createElement('tr');
     tr.innerHTML = `
@@ -1213,6 +1378,7 @@ function setupRegistroModals() {
       return;
     }
 
+    const notaVal = document.getElementById('txNota').value.trim();
     let obj = {
       id: id,
       fecha: document.getElementById('txFecha').value,
@@ -1220,7 +1386,8 @@ function setupRegistroModals() {
       moneda: moneda,
       tasaCambio: tasa,
       monto: montoCLP,
-      descripcion: document.getElementById('txDesc').value
+      descripcion: document.getElementById('txDesc').value,
+      ...(notaVal ? { nota: notaVal } : {})
     };
 
     if (ctx === 'gasto') {
@@ -1377,6 +1544,9 @@ function openTxModal(context, editObj = null) {
     } else if (context === 'ingreso') {
       document.getElementById('txFondo').value = editObj.fondo;
     }
+    document.getElementById('txNota').value = editObj.nota || '';
+  } else {
+    document.getElementById('txNota').value = '';
   }
 
   document.getElementById('modalTx').classList.add('active');
