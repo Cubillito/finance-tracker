@@ -77,10 +77,57 @@
 
     <!-- VISTA: RESUMEN MENSUAL -->
     <main id="view-resumen" class="view active">
+
+      <!-- ===== WIDGET PATRIMONIO ===== -->
+      <div class="patrimonio-widget" id="patrimonioWidget">
+        <!-- Fondos disponibles -->
+        <div class="patrimonio-section">
+          <div class="patrimonio-section-title">
+            <span class="material-icons-round" style="font-size:0.9rem;">account_balance_wallet</span>
+            Cuentas corrientes
+          </div>
+          <div id="patrimonioFondosRows">
+            <!-- Renderizado por JS -->
+          </div>
+          <div class="patrimonio-subtotal">
+            <span class="pat-label">Total disponible</span>
+            <span class="pat-value text-primary" id="patrimonioDisponibleTotal">$0</span>
+          </div>
+        </div>
+
+        <div class="patrimonio-divider"></div>
+
+        <!-- Cuentas separadas -->
+        <div class="patrimonio-section">
+          <div class="patrimonio-section-title">
+            <span class="material-icons-round" style="font-size:0.9rem;">savings</span>
+            Cuentas separadas
+          </div>
+          <div class="patrimonio-cuenta-row">
+            <span class="pat-label"><span class="material-icons-round" style="font-size:1rem; color:var(--color-success)">savings</span> Ahorro</span>
+            <span class="pat-value text-success privacy-value" id="patrimonioAhorro" data-raw="0">$0</span>
+          </div>
+          <div class="patrimonio-cuenta-row">
+            <span class="pat-label"><span class="material-icons-round" style="font-size:1rem; color:var(--color-primary)">trending_up</span> Inversión</span>
+            <span class="pat-value text-primary privacy-value" id="patrimonioInversion" data-raw="0">$0</span>
+          </div>
+        </div>
+
+        <div class="patrimonio-divider"></div>
+
+        <!-- Total patrimonio -->
+        <div class="patrimonio-grand">
+          <span class="pg-label">💼 Patrimonio total</span>
+          <span class="pg-value" id="patrimonioGrandTotal">$0</span>
+          <span class="pg-sub" id="patrimonioGrandSub">—</span>
+        </div>
+      </div>
+
+      <!-- Hero: flujo del mes -->
       <div class="hero-card">
         <div class="hero-content" style="width: 100%;">
           <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <p class="hero-subtitle" style="margin:0;">Saldos Disponibles</p>
+            <p class="hero-subtitle" style="margin:0;">Flujo del mes</p>
             <button class="btn btn-outline btn-sm glass" style="color:white; border-color:white; padding: 0.3rem 0.6rem;" onclick="openFondosModal()">
               <span class="material-icons-round" style="font-size: 1.1rem; margin-right: 0;">settings</span>
             </button>
@@ -800,6 +847,6 @@
   </button>
 
   <script src="env.js"></script>
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

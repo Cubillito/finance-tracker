@@ -829,6 +829,7 @@ function checkRecurrentesPendientes() {
 
 function refreshViews() {
   // Siempre actualizar resumen y metas (sin gráficos)
+  renderPatrimonio();
   renderResumen();
   renderMetasList();
   checkRecurrentesPendientes();
@@ -1002,6 +1003,71 @@ function renderDonutAndStats(tx, txPrev, iTotal) {
       (trendGasto !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center; margin-top:0.4rem;">Gastos ${trendGasto > 0 ? '↑' : '↓'} ${Math.abs(trendGasto)}% vs mes anterior</p>` : '') +
       (trendIngreso !== null ? `<p class="text-muted" style="font-size:0.78rem; text-align:center;">Ingresos ${trendIngreso > 0 ? '↑' : '↓'} ${Math.abs(trendIngreso)}% vs mes anterior</p>` : '');
   }
+}
+
+// === WIDGET PATRIMONIO (saldos acumulados históricos) ===
+function renderPatrimonio() {
+  const fondosRows = document.getElementById('patrimonioFondosRows');
+  if (!fondosRows) return;
+
+  // --- Saldo acumulado por cada fondo de usuario (TODO el historial) ---
+  let totalDisponible = 0;
+  fondosRows.innerHTML = '';
+
+  (window.userFondos || []).forEach(fondo => {
+    const ingresos = db.ingresos.filter(i => i.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
+    const gastos   = db.gastos.filter(g => g.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
+    const saldo    = ingresos - gastos;
+    totalDisponible += saldo;
+
+    const row = document.createElement('div');
+    row.className = 'patrimonio-fondo-row';
+    row.innerHTML = `
+      <span class="pat-label">${fondo}</span>
+      <span class="pat-value ${saldo >= 0 ? 'text-success' : 'text-danger'}">${formatMoney(saldo)}</span>
+    `;
+    fondosRows.appendChild(row);
+  });
+
+  // --- Ahorro acumulado (todo el historial) ---
+  const ahTotal =
+    db.ingresos.filter(i => i.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0) +
+    db.ahorros.reduce((a, b) => a + Number(b.monto), 0) -
+    db.gastos.filter(g => g.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0);
+
+  // --- Inversión acumulada (todo el historial) ---
+  const invTotal =
+    db.inversiones.reduce((a, b) => a + Number(b.monto), 0) +
+    db.ingresos.filter(i => i.fondo === 'Inversion' || i.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0) -
+    db.gastos.filter(g => g.fondo === 'Inversion' || g.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0);
+
+  const grandTotal = totalDisponible + ahTotal + invTotal;
+
+  // --- Poblar DOM ---
+  const elDisp = document.getElementById('patrimonioDisponibleTotal');
+  if (elDisp) animateCardValue(elDisp, totalDisponible);
+
+  const elAh = document.getElementById('patrimonioAhorro');
+  if (elAh) { elAh.dataset.raw = ahTotal; animateCardValue(elAh, ahTotal); }
+
+  const elInv = document.getElementById('patrimonioInversion');
+  if (elInv) { elInv.dataset.raw = invTotal; animateCardValue(elInv, invTotal); }
+
+  const elGrand = document.getElementById('patrimonioGrandTotal');
+  if (elGrand) animateCardValue(elGrand, grandTotal);
+
+  // Sub-línea: desglose porcentual
+  const elSub = document.getElementById('patrimonioGrandSub');
+  if (elSub && grandTotal > 0) {
+    const pctDisp  = ((totalDisponible / grandTotal) * 100).toFixed(0);
+    const pctAh    = ((ahTotal / grandTotal) * 100).toFixed(0);
+    const pctInv   = ((invTotal / grandTotal) * 100).toFixed(0);
+    elSub.textContent = `${pctDisp}% disp. · ${pctAh}% ahorro · ${pctInv}% inv.`;
+  } else if (elSub) {
+    elSub.textContent = '—';
+  }
+
+  applyPrivacySettings();
 }
 
 // === RENDER: RESUMEN MENSUAL ===
