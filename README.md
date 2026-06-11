@@ -1,33 +1,47 @@
 # Finance Tracker 💸
-      
-Una aplicación web limpia y privada para llevar el control de tus finanzas personales. Al ser una aplicación estática usando HTML, CSS y JavaScript puro, no requieres un servidor backend ni base de datos en la nube. 
 
-**Toda tu información está almacenada de manera local en un archivo json dentro de tu PC, proporcionando total privacidad.**
+Aplicación web para llevar el control de tus finanzas personales. Es una app estática (HTML, CSS y JavaScript puro) que usa **Firebase** para autenticación (Google) y almacenamiento en la nube (**Cloud Firestore**), con caché local y soporte offline.
 
-## ¿Cómo abrir?
+## Arquitectura
 
-Como este proyecto no cuenta con un servidor, usarlo es tan fácil como:
-1. Asegurarte de estar usando un navegador basado en Chromium, como **Google Chrome, Microsoft Edge, u Opera**. (⚠️ Firefox y Safari no soportan algunas funciones de acceso al sistema de archivos local de manera transparente).
-2. Hacer doble clic sobre el archivo `index.html` para abrirlo en tu navegador.
-3. En la pantalla principal que aparece, presionar **"Abrir data.json"** y seleccionar el archivo `data.json` que viene incluido en esta carpeta.
-4. Si quieres un control desde cero, dale a **"Crear nuevo archivo"** y guarda un nuevo `data.json` en tu carpeta.
+- **Frontend:** HTML/CSS/JS sin frameworks. Gráficos con Chart.js, exportación a Excel con xlsx-js-style.
+- **Autenticación:** Firebase Auth con Google Sign-In.
+- **Datos:** Cloud Firestore, bajo `users/{uid}/...` (subcolecciones: ingresos, gastos, ahorros, inversiones, creditos, deudas, recurrentes, presupuestos, config).
+- **Offline:** persistencia offline de Firestore habilitada — los cambios sin conexión se encolan y sincronizan solos.
 
-## Uso del Guardado Local (File System Access API)
+> Nota: la configuración de Firebase en `env.js` (apiKey, projectId, etc.) **no es secreta** — se descarga con la página. La protección real de tus datos son las **reglas de Firestore** y las restricciones de la API key.
 
-Este proyecto usa la **File System Access API** del navegador para leer y escribir tu archivo directamente en el disco.
-- Cuando realices algún cambio, la aplicación automáticamente detectará el cambio y guardará en segundo plano, por lo que tus cambios persistirán de inmediato.
-- Para ello tu navegador solicitará "Permitir editar archivos" al momento de abrir el JSON. Autoriza el permiso para su correcto uso.
+## Configuración inicial
 
-## Estructura de Datos (data.json)
-El archivo json sigue este molde principal:
+1. Copia `env.example.js` como `env.js` y completa la configuración de tu proyecto de Firebase.
+2. En `firestore.rules`, **reemplaza `TU_EMAIL_AQUI@gmail.com` por tu cuenta de Google**. Esto restringe la base de datos exclusivamente a tu cuenta (cualquier otra persona con cuenta Google podrá iniciar sesión, pero no leer ni escribir datos).
+3. Despliega las reglas: `firebase deploy --only firestore:rules`.
+4. Despliega el hosting: `firebase deploy --only hosting`.
+
+### Recomendaciones de seguridad adicionales (consola de Google Cloud / Firebase)
+
+- Restringe la API key por **HTTP referrers** (tu dominio de hosting) en Google Cloud Console → Credentials.
+- Habilita **App Check** (reCAPTCHA) en la consola de Firebase.
+- En Firebase Auth, deja habilitado solo el proveedor de Google.
+
+## Desarrollo local
+
+Sirve la carpeta con cualquier servidor estático (el login de Google no funciona abriendo el archivo directo con `file://`):
+
+```bash
+firebase serve --only hosting
+# o
+npx serve .
+```
+
+## Respaldo local (data.json)
+
+La app puede exportar/importar un respaldo en JSON (funciones `exportToFile` / `importFromFile`, disponibles desde la consola del navegador). El archivo `data.json` del repo es solo una plantilla vacía con la estructura:
+
 ```json
 {
-  "ingresos": [
-    { "id": "...", "fecha": "2026-05-01", "monto": 100000, "descripcion": "Sueldo", "fondo": "Personal" }
-  ],
-  "gastos": [
-    { "id": "...", "fecha": "2026-05-02", "monto": 5000, "donde": "Supermercado", "descripcion": "Comida", "categoria": "comida", "fondo": "Personal", "credito": true }
-  ],
+  "ingresos": [],
+  "gastos": [],
   "ahorros": [],
   "inversiones": [],
   "creditos": [],
@@ -36,11 +50,14 @@ El archivo json sigue este molde principal:
 }
 ```
 
-## Configuración de Firebase (Variables de Entorno)
+⚠️ `data.json` y `env.js` están en `.gitignore` y excluidos del deploy de hosting — nunca subas datos financieros reales al repo ni al hosting.
 
-Para proteger tus credenciales y no subirlas al repositorio público de GitHub, la configuración de Firebase se carga mediante un archivo de variables de entorno.
+## Funcionalidades
 
-**Pasos para configurar tu base de datos localmente:**
-1. En la raíz del proyecto, haz una copia del archivo \`env.example.js\` y nómbrala \`env.js\`.
-2. Edita \`env.js\` con tu propia configuración obtenida de la consola de Firebase.
-3. El archivo \`env.js\` ya está incluido en \`.gitignore\`, por lo que tus credenciales estarán seguras y no se subirán a GitHub.
+- Resumen mensual con flujo por fondo, comparativas vs mes anterior y gráfico de categorías.
+- Registro de ingresos/gastos multimoneda (CLP/USD/EUR) con notas.
+- Distribución automática de ingresos entre fondos por porcentajes.
+- **Crédito por pagar:** los gastos con tarjeta de crédito se acumulan como deuda pendiente (visible en el Resumen sin importar el mes) y se saldan registrando un "Pago Crédito".
+- Deudas informales (me deben / les debo) con transacción automática al saldar.
+- Plantillas recurrentes, metas de gasto por categoría/fondo.
+- Estadísticas mensuales y anuales, exportación de cartolas a Excel.

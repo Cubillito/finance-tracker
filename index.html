@@ -15,13 +15,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.min.js" integrity="sha384-XcdcwHqIPULERb2yDEM4R0XaQKU3YnDsrTmjACBZyfdVVqjh6xQ4/DCMd7XLcA6Y" crossorigin="anonymous" defer></script>
   <!-- Firebase SDK (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" integrity="sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9" crossorigin="anonymous" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" integrity="sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1" crossorigin="anonymous" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" integrity="sha384-qn4Jh88HhJA8dplNQyGjOh9OGI4izVhrfj/qIFgaKcdgOE06pXqIKGlsCILZcLAC" crossorigin="anonymous" defer></script>
+  <!-- xlsx-js-style incluye SheetJS completo, no hace falta cargar xlsx aparte -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js" integrity="sha384-OUW9euuUyxyHcAhTqbhI+Iyb8LMssXt/cpz0yXhs9UWG2/R/uaWdakx/4cfww7Vb" crossorigin="anonymous" defer></script>
 </head>
 <body>
 
@@ -157,6 +157,15 @@
           <div class="card-value" id="sumDebito">$0</div>
           <span class="card-delta" id="deltaDebito"></span>
         </div>
+
+        <div class="card card-danger" id="cardCreditoPendiente" style="display:none;">
+          <div class="card-title" style="justify-content: space-between; width: 100%;">
+            <div style="display:flex; align-items:center; gap:0.4rem"><span class="material-icons-round">credit_score</span> Crédito por Pagar</div>
+            <button class="btn btn-outline btn-sm" onclick="openPagoCreditoModal()" title="Registrar pago de la tarjeta">💳 Pagar</button>
+          </div>
+          <div class="card-value text-danger" id="sumCreditoPendiente">$0</div>
+          <span class="card-delta delta-neutral visible" style="display:inline-flex;">Acumulado de todos los meses</span>
+        </div>
       </div>
 
       <!-- Donut chart: gastos por categoría -->
@@ -220,6 +229,7 @@
         <div>
           <button class="btn btn-success" id="btnAddIngreso">➕ Ingreso</button>
           <button class="btn btn-danger" id="btnAddGasto">➖ Gasto</button>
+          <button class="btn btn-outline" id="btnAddPagoCredito">💳 Pago Crédito</button>
           <button class="btn btn-outline" id="btnAddIngresoFijo">🔄 Ingreso Fijo (Sueldo)</button>
         </div>
       </div>
@@ -806,7 +816,7 @@
     <span class="material-icons-round">add</span>
   </button>
 
-  <script src="env.js"></script>
-  <script src="app.js?v=23"></script>
+  <script src="env.js" defer></script>
+  <script src="app.js?v=24" defer></script>
 </body>
 </html>

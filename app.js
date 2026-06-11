@@ -11,6 +11,12 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const firestore = firebase.firestore();
 
+// Persistencia offline de Firestore: las escrituras sin conexión se encolan
+// y se reintentan solas al volver la red (evita perder cambios al recargar).
+firestore.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+  console.warn('Persistencia offline no disponible:', err.code || err);
+});
+
 // === ESTADO GLOBAL ===
 const STORAGE_KEY = 'financeTrackerData';
 let currentUser = null;
@@ -29,11 +35,19 @@ const emptyDb = () => ({
   creditos: [], deudas: [], recurrentes: [], presupuestos: [], config: []
 });
 
-// Generador de UUID v4 simple
+// Generador de UUID v4
 function uuidv4() {
+  if (crypto.randomUUID) return crypto.randomUUID();
   return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, c =>
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   );
+}
+
+// Escapa texto de usuario antes de insertarlo en HTML (previene XSS)
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
 }
 
 // === AUTENTICACIÓN (Firebase Auth con Google) ===
@@ -84,6 +98,8 @@ async function loginWithGoogle() {
 }
 
 function logOut() {
+  // No dejar datos financieros en el navegador al cerrar sesión
+  localStorage.removeItem(STORAGE_KEY);
   auth.signOut();
 }
 window.logOut = logOut;
@@ -229,13 +245,23 @@ async function saveToFirestore() {
   try {
     markUnsaved();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); // Guardado local inmediato
-    const promises = [];
+    const baseRef = firestore.collection('users').doc(currentUser.uid);
+    const ops = [];
     Object.keys(db).forEach(col => {
       if (Array.isArray(db[col])) {
-        db[col].forEach(item => promises.push(saveItem(col, item)));
+        db[col].forEach(item => {
+          if (item && item.id) ops.push({ col, item });
+        });
       }
     });
-    await Promise.all(promises);
+    // Escrituras en lotes (límite de Firestore: 500 operaciones por batch)
+    for (let i = 0; i < ops.length; i += 450) {
+      const batch = firestore.batch();
+      ops.slice(i, i + 450).forEach(op => {
+        batch.set(baseRef.collection(op.col).doc(op.item.id), op.item);
+      });
+      await batch.commit();
+    }
     markSaved();
   } catch (err) {
     console.error('Error masivo Firestore:', err);
@@ -271,6 +297,22 @@ async function exportToFile() {
 }
 window.exportToFile = exportToFile;
 
+// Valida y normaliza un data.json importado: solo colecciones conocidas,
+// solo arrays de objetos, y cada item con un id válido.
+function sanitizeImportedData(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('El archivo no tiene el formato esperado');
+  }
+  const clean = emptyDb();
+  Object.keys(clean).forEach(coll => {
+    if (!Array.isArray(data[coll])) return;
+    clean[coll] = data[coll]
+      .filter(item => item && typeof item === 'object' && !Array.isArray(item))
+      .map(item => ({ ...item, id: (typeof item.id === 'string' && item.id) ? item.id : uuidv4() }));
+  });
+  return clean;
+}
+
 async function importFromFile() {
   try {
     if (window.showOpenFilePicker) {
@@ -279,19 +321,21 @@ async function importFromFile() {
       });
       const file = await handle.getFile();
       const data = JSON.parse(await file.text());
-      db = { ...emptyDb(), ...data };
+      db = sanitizeImportedData(data);
     } else {
-      await new Promise((resolve) => {
+      await new Promise((resolve, reject) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
         input.onchange = async () => {
-          const file = input.files[0];
-          if (file) {
-            const data = JSON.parse(await file.text());
-            db = { ...emptyDb(), ...data };
-          }
-          resolve();
+          try {
+            const file = input.files[0];
+            if (file) {
+              const data = JSON.parse(await file.text());
+              db = sanitizeImportedData(data);
+            }
+            resolve();
+          } catch (e) { reject(e); }
         };
         input.click();
       });
@@ -300,7 +344,10 @@ async function importFromFile() {
     refreshViews();
     showToast('Datos importados y sincronizados con la nube', 'success');
   } catch (err) {
-    if (err.name !== 'AbortError') console.error(err);
+    if (err.name !== 'AbortError') {
+      console.error(err);
+      showToast('No se pudo importar el archivo: ' + err.message, 'error');
+    }
   }
 }
 window.importFromFile = importFromFile;
@@ -336,7 +383,7 @@ function showToast(message, type = 'success', duration = 3500) {
   
   toast.innerHTML = `
     <span class="material-icons-round toast-icon">${icons[type] || icons.info}</span>
-    <span class="toast-message">${message}</span>
+    <span class="toast-message">${escapeHtml(message)}</span>
     <button class="toast-close" onclick="dismissToast(this.parentElement)"><span class="material-icons-round">close</span></button>
     <div class="toast-progress"><div class="toast-progress-bar"></div></div>
   `;
@@ -381,9 +428,9 @@ function showConfirmToast(message, onConfirm, onCancel, confirmLabel = 'Sí, con
   toast.innerHTML = `
     <span class="material-icons-round toast-icon">help_outline</span>
     <div class="toast-confirm-body">
-      <span class="toast-message">${message}</span>
+      <span class="toast-message">${escapeHtml(message)}</span>
       <div class="toast-confirm-actions">
-        <button class="btn btn-danger btn-sm toast-btn-confirm">${confirmLabel}</button>
+        <button class="btn btn-danger btn-sm toast-btn-confirm">${escapeHtml(confirmLabel)}</button>
         <button class="btn btn-outline btn-sm toast-btn-cancel">Cancelar</button>
       </div>
     </div>
@@ -414,11 +461,11 @@ function showPromptModal(title, defaultValue, onConfirm) {
   overlay.innerHTML = `
     <div class="modal-content" style="max-width: 400px;">
       <div class="modal-header">
-        <h3>${title}</h3>
+        <h3>${escapeHtml(title)}</h3>
         <button class="close-modal" id="promptClose">&times;</button>
       </div>
       <div class="form-group">
-        <input type="text" id="promptInput" class="form-control" value="${defaultValue || ''}">
+        <input type="text" id="promptInput" class="form-control" value="${escapeHtml(defaultValue || '')}">
       </div>
       <div style="display: flex; gap: 0.8rem; margin-top: 1rem;">
         <button class="btn btn-primary" id="promptOk" style="flex:1;">Confirmar</button>
@@ -504,10 +551,11 @@ function initNav() {
         document.querySelectorAll(`.tab-btn[data-target="${target}"]`).forEach(t => t.classList.add('active'));
         document.getElementById(target).classList.add('active');
 
-        // Si entramos a Estadísticas, forzar renderizado (para recalcular dimensiones del Canvas)
-        if(target === 'view-stats-mes' || target === 'view-stats-ano' || target === 'view-resumen'){
-          refreshViews();
-        }
+        // Renderizar el contenido de la vista a la que entramos.
+        // refreshViews() detecta la vista activa y dibuja su tabla/gráficos.
+        // (Antes solo se hacía para Resumen/Estadísticas, por lo que Deudas,
+        //  Recurrentes y Registrar quedaban sin renderizar al abrir la pestaña.)
+        refreshViews();
       }
     });
   });
@@ -536,7 +584,7 @@ function populateCategoriasSelect(selectId, includePlaceholder = true) {
   const sel = document.getElementById(selectId);
   if (!sel) return;
   const placeholder = includePlaceholder ? '<option value="">Seleccione...</option>' : '<option value="">Todas</option>';
-  sel.innerHTML = placeholder + CATEGORIAS.map(c => `<option value="${c.value}">${c.label}</option>`).join('');
+  sel.innerHTML = placeholder + CATEGORIAS.map(c => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join('');
 }
 
 function refreshCategoriasSelects() {
@@ -559,8 +607,8 @@ function renderCategoriasList() {
     const item = document.createElement('div');
     item.className = 'cat-list-item';
     item.innerHTML = `
-      <span style="font-size:1.2rem;">${cat.label.split(' ')[0]}</span>
-      <span>${cat.label.split(' ').slice(1).join(' ') || cat.label}</span>
+      <span style="font-size:1.2rem;">${escapeHtml(cat.label.split(' ')[0])}</span>
+      <span>${escapeHtml(cat.label.split(' ').slice(1).join(' ') || cat.label)}</span>
       ${!isDefault
         ? `<button class="btn btn-danger btn-sm" onclick="deleteCategoriaConfig(${idx})" title="Eliminar">🗑</button>`
         : `<span class="text-muted" style="font-size:0.75rem; margin-left:auto;">predeterminada</span>`
@@ -607,7 +655,7 @@ function populateFilterRegFondo() {
   const sel = document.getElementById('filterRegFondo');
   if (!sel) return;
   sel.innerHTML = '<option value="">Todos</option>' +
-    (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('') +
+    (window.userFondos || []).map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('') +
     '<option value="Ahorro">Ahorro</option>' +
     '<option value="Inversion">Inversión</option>';
 }
@@ -677,14 +725,14 @@ function renderMetasList() {
   if (noMsg) noMsg.style.display = 'none';
   
   db.presupuestos.forEach(p => {
-    const fondoLabel = p.fondo ? ` — ${p.fondo}` : '';
+    const fondoLabel = p.fondo ? ` — ${escapeHtml(p.fondo)}` : '';
     const card = document.createElement('div');
     card.className = 'card';
     card.style.cssText = 'padding: 1.2rem; display: flex; justify-content: space-between; align-items: center;';
     card.innerHTML = `
       <div>
         <div style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.3rem;">
-          ${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}${fondoLabel}
+          ${getIconForCat(p.categoria)} ${escapeHtml(p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1))}${fondoLabel}
         </div>
         <div class="text-muted" style="font-size: 0.9rem;">Límite: ${formatMoney(p.monto)}</div>
       </div>
@@ -703,7 +751,7 @@ function setupMetasModal() {
     const sel = document.getElementById('metaFondo');
     if (!sel) return;
     sel.innerHTML = '<option value="">Todos los fondos</option>' +
-      (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('');
+      (window.userFondos || []).map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
   }
 
   document.getElementById('btnAddMeta').onclick = () => {
@@ -762,7 +810,7 @@ window.editMeta = function(id) {
   const sel = document.getElementById('metaFondo');
   if (sel) {
     sel.innerHTML = '<option value="">Todos los fondos</option>' +
-      (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('');
+      (window.userFondos || []).map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
   }
 
   document.getElementById('metaId').value = meta.id;
@@ -855,13 +903,17 @@ function refreshViews() {
 
 // Funciones Auxiliares de Consulta
 function getTransactionsByMonth(yearMonth) { // yearMonth = 'YYYY-MM'
-  const filterFn = (t) => t.fecha.startsWith(yearMonth);
+  // Defensivo: un registro sin fecha no debe romper el render completo
+  const filterFn = (t) => t && t.fecha && t.fecha.startsWith(yearMonth);
   return {
     ingresos: db.ingresos.filter(filterFn),
     gastos: db.gastos.filter(filterFn),
     ahorros: db.ahorros.filter(filterFn),
     inversiones: db.inversiones.filter(filterFn),
-    creditos: db.creditos.filter(item => item.fecha_pago ? item.fecha_pago.startsWith(yearMonth) : item.fecha.startsWith(yearMonth)) // compatibilidad si la bd usar fecha en lugar de fecha_pago
+    creditos: db.creditos.filter(item => {
+      const f = item && (item.fecha_pago || item.fecha); // compatibilidad si la bd usa fecha en lugar de fecha_pago
+      return f && f.startsWith(yearMonth);
+    })
   };
 }
 
@@ -1034,7 +1086,10 @@ function renderResumen() {
     db.ahorros.reduce((a, b) => a + Number(b.monto), 0) -
     db.gastos.filter(g => g.fondo === 'Ahorro').reduce((a, b) => a + Number(b.monto), 0);
   
-  let invTotal = tx.inversiones.reduce((acc, i) => acc + Number(i.monto), 0) + tx.ingresos.filter(i => i.fondo === 'Inversion' || i.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0);
+  // Acumulado histórico, igual que el cálculo de Ahorro (antes era solo del mes, inconsistente)
+  let invTotal =
+    db.inversiones.reduce((a, b) => a + Number(b.monto), 0) +
+    db.ingresos.filter(i => i.fondo === 'Inversion' || i.fondo === 'Inversión').reduce((a, b) => a + Number(b.monto), 0);
   let cTotal = tx.creditos.reduce((acc, c) => acc + Number(c.monto), 0);
   
   let oldAhTotal = tx.ahorros.reduce((acc, a) => acc + Number(a.monto), 0);
@@ -1060,20 +1115,21 @@ function renderResumen() {
   const heroTotalBox  = document.getElementById('heroTotalBox');
   const heroTotalVal  = document.getElementById('heroTotalValue');
   if (heroContainer) {
-    heroContainer.innerHTML = '';
+    let heroHtml = '';
     let totalFondosMes = 0;
     window.userFondos.forEach(fondo => {
       let fIngresos = tx.ingresos.filter(i => i.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
       let fGastos   = tx.gastos.filter(g => g.fondo === fondo).reduce((a, b) => a + Number(b.monto), 0);
       let saldo = fIngresos - fGastos;
       totalFondosMes += saldo;
-      heroContainer.innerHTML += `
+      heroHtml += `
         <div class="hero-saldo-box">
-          <div class="card-title">${fondo}</div>
+          <div class="card-title">${escapeHtml(fondo)}</div>
           <div class="card-value">${formatMoney(saldo)}</div>
         </div>
       `;
     });
+    heroContainer.innerHTML = heroHtml;
     // Mostrar total solo cuando hay más de un fondo
     if (heroTotalBox && heroTotalVal) {
       if (window.userFondos.length > 1) {
@@ -1088,7 +1144,7 @@ function renderResumen() {
   // Generic Gasto display con count-up y delta
   const sumPers = document.getElementById('sumGastoPersonal');
   if (sumPers && window.userFondos[0]) {
-    sumPers.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">shopping_cart</span> Gasto ${window.userFondos[0]}`;
+    sumPers.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">shopping_cart</span> Gasto ${escapeHtml(window.userFondos[0])}`;
     let g1 = tx.gastos.filter(g => g.fondo === window.userFondos[0]).reduce((a, b) => a + Number(b.monto), 0);
     animateCardValue(sumPers, g1);
     renderDelta('deltaGastoPersonal', g1, gPersPersonal);
@@ -1096,7 +1152,7 @@ function renderResumen() {
 
   const sumU = document.getElementById('sumGastoU');
   if (sumU && window.userFondos[1]) {
-    sumU.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">school</span> Gasto ${window.userFondos[1]}`;
+    sumU.parentElement.querySelector('.card-title').innerHTML = `<span class="material-icons-round">school</span> Gasto ${escapeHtml(window.userFondos[1])}`;
     let g2 = tx.gastos.filter(g => g.fondo === window.userFondos[1]).reduce((a, b) => a + Number(b.monto), 0);
     animateCardValue(sumU, g2);
     renderDelta('deltaGastoU', g2, gPersU);
@@ -1121,9 +1177,8 @@ function renderResumen() {
   if (db.presupuestos && db.presupuestos.length > 0) {
     if(pContainer) pContainer.style.display = 'block';
     if(pCardsContainer) pCardsContainer.style.display = 'block';
-    if(pList) pList.innerHTML = '';
-    if(pCardsList) pCardsList.innerHTML = '';
-    
+    let budgetHtml = '';
+
     let curGastos = {};
     tx.gastos.forEach(g => {
       let c = g.categoria || 'otro';
@@ -1145,12 +1200,12 @@ function renderResumen() {
       let pct = (spent / limit) * 100;
       if (pct > 100) pct = 100;
       let isDanger = pct >= 90;
-      const fondoLabel = p.fondo ? ` — ${p.fondo}` : '';
+      const fondoLabel = p.fondo ? ` — ${escapeHtml(p.fondo)}` : '';
 
-      let htmlCode = `
+      budgetHtml += `
         <div style="background: rgba(255,255,255,0.5); padding: 1rem; border-radius: 12px; border: 1px solid var(--color-border); box-shadow: var(--shadow-sm);">
           <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; font-size:0.9rem; font-weight:500;">
-            <span>${getIconForCat(p.categoria)} ${p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1)}${fondoLabel}</span>
+            <span>${getIconForCat(p.categoria)} ${escapeHtml(p.categoria.charAt(0).toUpperCase() + p.categoria.slice(1))}${fondoLabel}</span>
             <span class="text-muted">${formatMoney(spent)} / ${formatMoney(limit)}</span>
           </div>
           <div class="progress-bar">
@@ -1158,9 +1213,9 @@ function renderResumen() {
           </div>
         </div>
       `;
-      if(pList) pList.innerHTML += htmlCode;
-      if(pCardsList) pCardsList.innerHTML += htmlCode;
     });
+    if(pList) pList.innerHTML = budgetHtml;
+    if(pCardsList) pCardsList.innerHTML = budgetHtml;
   } else {
     if(pContainer) pContainer.style.display = 'none';
     if(pCardsContainer) pCardsContainer.style.display = 'none';
@@ -1190,10 +1245,10 @@ function renderResumen() {
   allTx.slice(0, 15).forEach(item => {
     let tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${item.fecha}</td>
+      <td>${escapeHtml(item.fecha)}</td>
       <td><span class="tag">${item._type}</span></td>
-      <td>${item.descripcion || item.donde || ''}</td>
-      <td>${item.fondo || ''} ${item.credito ? '💳' : ''}</td>
+      <td>${escapeHtml(item.descripcion || item.donde || '')}</td>
+      <td>${escapeHtml(item.fondo || '')} ${item.credito ? '💳' : ''}</td>
       <td class="${item._color}">${formatMoney(item.monto)}</td>
     `;
     table.appendChild(tr);
@@ -1215,9 +1270,35 @@ function renderResumen() {
     resumenMsg.style.display = 'none';
   }
 
+  // === CRÉDITO POR PAGAR (acumulado de todos los meses, sin importar el filtro) ===
+  renderCreditoPendiente();
+
   // === DEUDAS PENDIENTES (sin importar el mes) ===
   renderDeudasPendientesEnResumen();
 }
+
+// Deuda de tarjeta de crédito acumulada: todo lo gastado con crédito
+// menos todos los pagos de crédito registrados. Persiste entre meses.
+function renderCreditoPendiente() {
+  const card = document.getElementById('cardCreditoPendiente');
+  const valueEl = document.getElementById('sumCreditoPendiente');
+  if (!card || !valueEl) return;
+
+  const totalGastadoCredito = db.gastos.filter(g => g.credito).reduce((a, b) => a + Number(b.monto), 0);
+  const totalPagado = db.creditos.reduce((a, b) => a + Number(b.monto), 0);
+  const pendiente = totalGastadoCredito - totalPagado;
+
+  if (pendiente > 0.5) {
+    card.style.display = '';
+    animateCardValue(valueEl, pendiente);
+  } else {
+    card.style.display = 'none';
+  }
+}
+
+window.openPagoCreditoModal = function() {
+  openTxModal('credito');
+};
 
 function renderDeudasPendientesEnResumen() {
   const section = document.getElementById('deudasPendientesSection');
@@ -1241,13 +1322,14 @@ function renderDeudasPendientesEnResumen() {
     const card = document.createElement('div');
     card.className = `deuda-card-mini ${esMeDeben ? 'me-deben' : 'les-debo'}`;
     card.innerHTML = `
-      <div class="deuda-persona">${esMeDeben ? '✅' : '⛽'} ${d.persona}</div>
+      <div class="deuda-persona">${esMeDeben ? '✅' : '⛽'} ${escapeHtml(d.persona)}</div>
       <div class="deuda-monto ${esMeDeben ? 'text-success' : 'text-danger'}">${formatMoney(d.monto)}</div>
-      <div class="deuda-desc">${d.descripcion || ''}</div>
+      <div class="deuda-desc">${escapeHtml(d.descripcion || '')}</div>
       <div class="deuda-meta">
-        <span>📅 ${d.fecha}</span>
-        ${d.fondo ? `<span>• ${d.fondo}</span>` : ''}
+        <span>📅 ${escapeHtml(d.fecha)}</span>
+        ${d.fondo ? `<span>• ${escapeHtml(d.fondo)}</span>` : ''}
       </div>
+      <button class="btn btn-success btn-sm" style="margin-top:0.5rem;" onclick="toggleDeuda('${escapeHtml(d.id)}')">✓ Marcar pagada</button>
     `;
     grid.appendChild(card);
   });
@@ -1256,7 +1338,7 @@ function renderDeudasPendientesEnResumen() {
 // === RENDER: REGISTRO GENERAL ===
 function getIconForCat(cat) {
   const found = CATEGORIAS.find(c => c.value === cat);
-  if (found) return found.label.split(' ')[0]; // Devuelve solo el emoji
+  if (found) return escapeHtml(found.label.split(' ')[0]); // Devuelve solo el emoji (escapado: es texto de usuario)
   return '❓';
 }
 
@@ -1309,26 +1391,26 @@ function renderRegistro() {
   
   allTx.forEach(item => {
     let colorClass = 'text-muted';
-    let catOrFondo = item.fondo || '';
+    let catOrFondo = escapeHtml(item.fondo || '');
     if (item._type === 'gasto') {
       colorClass = 'text-danger';
-      catOrFondo = `${item.fondo} / ${getIconForCat(item.categoria)} ${item.categoria||''}`;
+      catOrFondo = `${escapeHtml(item.fondo)} / ${getIconForCat(item.categoria)} ${escapeHtml(item.categoria||'')}`;
     }
     if (item._type === 'ingreso') colorClass = 'text-success';
 
-    let desc = item._type === 'gasto' ? `<b>${item.donde}</b> - ${item.descripcion}` : item.descripcion;
-    if (item.nota) desc += `<div class="tx-nota-display">📝 ${item.nota}</div>`;
+    let desc = item._type === 'gasto' ? `<b>${escapeHtml(item.donde)}</b> - ${escapeHtml(item.descripcion)}` : escapeHtml(item.descripcion);
+    if (item.nota) desc += `<div class="tx-nota-display">📝 ${escapeHtml(item.nota)}</div>`;
 
     let tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${item.fecha}</td>
+      <td>${escapeHtml(item.fecha)}</td>
       <td><span class="tag">${item._typeLabel}</span></td>
       <td>${desc}</td>
       <td>${catOrFondo}</td>
       <td class="${colorClass}">${formatMoney(item.monto)}</td>
       <td class="action-btns">
-        <button class="btn btn-outline" onclick="editTx('${item.id}', '${item._type}')">✏️</button>
-        <button class="btn btn-outline" onclick="deleteTx('${item.id}', '${item._type}')">🗑️</button>
+        <button class="btn btn-outline" onclick="editTx('${escapeHtml(item.id)}', '${item._type}')">✏️</button>
+        <button class="btn btn-outline" onclick="deleteTx('${escapeHtml(item.id)}', '${item._type}')">🗑️</button>
       </td>
     `;
     table.appendChild(tr);
@@ -1340,6 +1422,8 @@ function renderRegistro() {
 function setupRegistroModals() {
   document.getElementById('btnAddIngreso').onclick = () => openTxModal('ingreso');
   document.getElementById('btnAddGasto').onclick = () => openTxModal('gasto');
+  const btnPagoCred = document.getElementById('btnAddPagoCredito');
+  if (btnPagoCred) btnPagoCred.onclick = () => openTxModal('credito');
   document.getElementById('btnAddIngresoFijo').onclick = () => {
     document.getElementById('formRecurrente').reset();
     document.getElementById('recId').value = '';
@@ -1364,8 +1448,8 @@ function setupRegistroModals() {
     if (distribuir && !isEdit) {
       const fondos = [...(window.userFondos || []), 'Ahorro', 'Inversión'];
       let total = 0;
-      const reglas = fondos.map(fondo => {
-        const inp = document.getElementById('txDistPct_' + fondo.replace(/\s+/g, '_'));
+      const reglas = fondos.map((fondo, idx) => {
+        const inp = document.getElementById('txDistPct_' + idx);
         const pct = Number(inp ? inp.value : 0) || 0;
         total += pct;
         return { fondo, porcentaje: pct };
@@ -1521,7 +1605,7 @@ function openTxModal(context, editObj = null) {
   gGasto.style.display = 'none';
   gFondo.style.display = 'none';
 
-  const userFondosOps = window.userFondos.map(f => `<option value="${f}">${f}</option>`).join('');
+  const userFondosOps = window.userFondos.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
 
   if (context === 'gasto') {
     gGasto.style.display = 'block';
@@ -1591,7 +1675,7 @@ window.deleteTx = function(id, type) {
 function populateDeudaFondos() {
   const sel = document.getElementById('deudaFondo');
   if (!sel) return;
-  sel.innerHTML = window.userFondos.map(f => `<option value="${f}">${f}</option>`).join('');
+  sel.innerHTML = window.userFondos.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
 }
 
 function setupDeudasModales() {
@@ -1659,16 +1743,16 @@ function renderDeudas() {
     if (item.pagado) tr.style.opacity = '0.5';
 
     tr.innerHTML = `
-      <td>${item.fecha}</td>
-      <td><b>${item.persona}</b></td>
-      <td>${item.descripcion}</td>
+      <td>${escapeHtml(item.fecha)}</td>
+      <td><b>${escapeHtml(item.persona)}</b></td>
+      <td>${escapeHtml(item.descripcion)}</td>
       <td>${item.tipo === 'me_deben' ? '✅ A Mi Favor' : '⛔ Yo Debo'}</td>
-      <td>${item.fondo || '-'}</td>
+      <td>${escapeHtml(item.fondo || '-')}</td>
       <td class="${item.tipo==='me_deben' ? 'text-success' : 'text-danger'}">${formatMoney(item.monto)}</td>
       <td>${item.pagado ? 'Saldado' : 'Pendiente'}</td>
       <td class="action-btns">
-        ${!item.pagado ? `<button class="btn btn-success btn-sm" onclick="toggleDeuda('${item.id}')">Pagado</button>` : `<button class="btn btn-outline btn-sm" onclick="toggleDeuda('${item.id}')">Deshacer</button>`}
-        <button class="btn btn-danger btn-sm" onclick="deleteDeuda('${item.id}')">🗑</button>
+        ${!item.pagado ? `<button class="btn btn-success btn-sm" onclick="toggleDeuda('${escapeHtml(item.id)}')">Pagado</button>` : `<button class="btn btn-outline btn-sm" onclick="toggleDeuda('${escapeHtml(item.id)}')">Deshacer</button>`}
+        <button class="btn btn-danger btn-sm" onclick="deleteDeuda('${escapeHtml(item.id)}')">🗑</button>
       </td>
     `;
     table.appendChild(tr);
@@ -1770,7 +1854,7 @@ function setupRecurrentesModales() {
     
     // Poblar fondo dinámicamente desde window.userFondos
     const fSelect = document.getElementById('recFondo');
-    const userOps = (window.userFondos || []).map(f => `<option value="${f}">${f}</option>`).join('');
+    const userOps = (window.userFondos || []).map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
     const extraOps = isGasto
       ? '<option value="Ahorro">Ahorro</option>'
       : '<option value="Ahorro">Ahorro</option><option value="Inversion">Inversión</option>';
@@ -1875,20 +1959,20 @@ function renderRecurrentes() {
     if (!item.activo) tr.style.opacity = '0.6';
 
     const color = item.tipo === 'gasto' ? 'text-danger' : 'text-success';
-    let details = item.fondo;
-    if(item.tipo === 'gasto') details += ` / ${item.categoria || ''} ${item.credito ? '💳' : ''}`;
+    let details = escapeHtml(item.fondo);
+    if(item.tipo === 'gasto') details += ` / ${escapeHtml(item.categoria || '')} ${item.credito ? '💳' : ''}`;
 
     tr.innerHTML = `
       <td>
-        <input type="checkbox" ${item.activo ? 'checked' : ''} onchange="toggleActivoRecurrente('${item.id}')">
+        <input type="checkbox" ${item.activo ? 'checked' : ''} onchange="toggleActivoRecurrente('${escapeHtml(item.id)}')">
       </td>
-      <td><span class="tag">${item.tipo.toUpperCase()}</span></td>
-      <td>${item.tipo === 'gasto' ? `<b>${item.donde}</b> - ` : ''}${item.descripcion}</td>
+      <td><span class="tag">${escapeHtml(item.tipo.toUpperCase())}</span></td>
+      <td>${item.tipo === 'gasto' ? `<b>${escapeHtml(item.donde)}</b> - ` : ''}${escapeHtml(item.descripcion)}</td>
       <td>${details}</td>
       <td class="${color}">${formatMoney(item.monto)}</td>
       <td class="action-btns">
-        <button class="btn btn-outline btn-sm" onclick="editRecurrente('${item.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="delRecurrente('${item.id}')">🗑</button>
+        <button class="btn btn-outline btn-sm" onclick="editRecurrente('${escapeHtml(item.id)}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="delRecurrente('${escapeHtml(item.id)}')">🗑</button>
       </td>
     `;
     table.appendChild(tr);
@@ -1973,7 +2057,7 @@ function renderStatsMensuales() {
     type: 'bar',
     data: {
       labels: ['Ingresos', 'Gastos'],
-      datasets: [{ label: 'Monto COP', data: [iTotal, gTotal], backgroundColor: [colors.success, colors.danger] }]
+      datasets: [{ label: 'Monto CLP', data: [iTotal, gTotal], backgroundColor: [colors.success, colors.danger] }]
     },
     options: { plugins: { title: { display: true, text: 'Ingresos vs Gastos' } } }
   });
@@ -1995,16 +2079,21 @@ function renderStatsMensuales() {
     options: { plugins: { title: { display: true, text: 'Gastos por Categoría' } } }
   });
 
-  // 3. Gastos por Fondo
-  let fondoSums = { 'Personal': 0, 'U': 0, 'Ahorro': 0 };
-  tx.gastos.forEach(g => { fondoSums[g.fondo] = (fondoSums[g.fondo] || 0) + Number(g.monto); });
+  // 3. Gastos por Fondo (fondos dinámicos del usuario, no hardcodeados)
+  let fondoSums = {};
+  (window.userFondos || []).forEach(f => { fondoSums[f] = 0; });
+  fondoSums['Ahorro'] = 0;
+  tx.gastos.forEach(g => {
+    const f = g.fondo || 'Sin fondo';
+    fondoSums[f] = (fondoSums[f] || 0) + Number(g.monto);
+  });
 
   if(chartFondoDonut) chartFondoDonut.destroy();
   chartFondoDonut = new Chart(document.getElementById('chartFondoDonut'), {
     type: 'doughnut',
     data: {
       labels: Object.keys(fondoSums),
-      datasets: [{ data: Object.values(fondoSums), backgroundColor: [colors.primary, colors.warning, colors.success] }]
+      datasets: [{ data: Object.values(fondoSums), backgroundColor: colors.cat }]
     },
     options: { plugins: { title: { display: true, text: 'Gastos por Fondo' } } }
   });
@@ -2226,7 +2315,7 @@ function renderStatsAnuales() {
   tbody.innerHTML = '';
   sortArr.forEach(entry => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${getIconForCat(entry[0])} ${entry[0]}</td><td class="text-danger">${formatMoney(entry[1])}</td>`;
+    tr.innerHTML = `<td>${getIconForCat(entry[0])} ${escapeHtml(entry[0])}</td><td class="text-danger">${formatMoney(entry[1])}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -2539,7 +2628,7 @@ function renderFondosList() {
   window.userFondos.forEach((fondo, idx) => {
     html += `
       <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.03); padding: 0.8rem 1rem; border-radius: 8px;">
-        <div style="font-weight:500;">${fondo}</div>
+        <div style="font-weight:500;">${escapeHtml(fondo)}</div>
         <div style="display:flex; gap:0.5rem;">
           <button class="btn btn-outline btn-sm" onclick="renameFondoConfig(${idx})"><span class="material-icons-round text-primary" style="font-size:1.1rem; margin-right:0;">edit</span></button>
           <button class="btn btn-outline btn-sm" onclick="deleteFondoConfig(${idx})"><span class="material-icons-round text-danger" style="font-size:1.1rem; margin-right:0;">delete</span></button>
@@ -2618,6 +2707,7 @@ async function saveConfigChange() {
   await saveItem('config', doc);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   renderFondosList();
+  populateFilterRegFondo(); // mantener el filtro de fondos al día tras agregar/renombrar/eliminar
   refreshViews();
 }
 
@@ -2730,17 +2820,17 @@ window.openDistribucionModal = function() {
   const reglas = window.distribucionReglas || [];
 
   container.innerHTML = '';
-  fondos.forEach(fondo => {
+  fondos.forEach((fondo, idx) => {
     const regla = reglas.find(r => r.fondo === fondo);
     const pct = regla ? regla.porcentaje : 0;
 
     const row = document.createElement('div');
     row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background: rgba(0,0,0,0.03); padding: 0.8rem 1rem; border-radius: 8px;';
     row.innerHTML = `
-      <div style="font-weight:500; flex:1;">${fondo}</div>
+      <div style="font-weight:500; flex:1;">${escapeHtml(fondo)}</div>
       <div style="display:flex; align-items:center; gap:0.5rem;">
-        <input type="number" id="distPct_${fondo.replace(/\s+/g,'_')}" 
-               class="form-control" min="0" max="100" step="0.1" value="${pct}"
+        <input type="number" id="distPct_${idx}"
+               class="form-control" min="0" max="100" step="0.1" value="${Number(pct) || 0}"
                style="width:90px; text-align:right;"
                oninput="updateDistribucionTotal()">
         <span>%</span>
@@ -2756,8 +2846,8 @@ window.openDistribucionModal = function() {
 window.updateDistribucionTotal = function() {
   const fondos = window.userFondos || [];
   let total = 0;
-  fondos.forEach(fondo => {
-    const inp = document.getElementById('distPct_' + fondo.replace(/\s+/g, '_'));
+  fondos.forEach((fondo, idx) => {
+    const inp = document.getElementById('distPct_' + idx);
     if (inp) total += Number(inp.value) || 0;
   });
   const totalEl = document.getElementById('distribucionTotal');
@@ -2772,8 +2862,8 @@ window.updateDistribucionTotal = function() {
 window.saveDistribucionReglas = async function() {
   const fondos = window.userFondos || [];
   let total = 0;
-  const reglas = fondos.map(fondo => {
-    const inp = document.getElementById('distPct_' + fondo.replace(/\s+/g, '_'));
+  const reglas = fondos.map((fondo, idx) => {
+    const inp = document.getElementById('distPct_' + idx);
     const pct = Number(inp ? inp.value : 0) || 0;
     total += pct;
     return { fondo: fondo, porcentaje: pct };
@@ -2829,18 +2919,17 @@ function _populateDistribuirInputs() {
   const reglas = window.distribucionReglas || [];
 
   container.innerHTML = '';
-  fondos.forEach(fondo => {
+  fondos.forEach((fondo, idx) => {
     const regla = reglas.find(r => r.fondo === fondo);
     const pct = regla ? regla.porcentaje : 0;
-    const safeId = 'txDistPct_' + fondo.replace(/\s+/g, '_');
 
     const row = document.createElement('div');
     row.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.8rem;';
     row.innerHTML = `
-      <label style="font-weight:500; flex:1; font-size:0.9rem;">${fondo}</label>
+      <label style="font-weight:500; flex:1; font-size:0.9rem;">${escapeHtml(fondo)}</label>
       <div style="display:flex; align-items:center; gap:0.4rem;">
-        <input type="number" id="${safeId}" class="form-control"
-               min="0" max="100" step="0.1" value="${pct}"
+        <input type="number" id="txDistPct_${idx}" class="form-control"
+               min="0" max="100" step="0.1" value="${Number(pct) || 0}"
                style="width:80px; text-align:right; padding: 0.5rem 0.6rem;"
                oninput="updateDistribuirTxTotal()">
         <span style="font-weight:500; color:var(--color-text-muted);">%</span>
@@ -2855,8 +2944,8 @@ function _populateDistribuirInputs() {
 window.updateDistribuirTxTotal = function() {
   const fondos = [...(window.userFondos || []), 'Ahorro', 'Inversión'];
   let total = 0;
-  fondos.forEach(fondo => {
-    const inp = document.getElementById('txDistPct_' + fondo.replace(/\s+/g, '_'));
+  fondos.forEach((fondo, idx) => {
+    const inp = document.getElementById('txDistPct_' + idx);
     if (inp) total += Number(inp.value) || 0;
   });
 
